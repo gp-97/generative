@@ -27,31 +27,33 @@ fn test_get_pixel_at() {
 fn test_set_pixel_at() {
     let mut canv = Canvas::new(500, 500);
 
+    canv.fill((240_u8, 240_u8, 240_u8, 255_u8));
+
     // Left Eye
     for i in 70..170 {
         for j in 100..200 {
-            canv.set_pixel_at(i, j, (180_u8, 2_u8, 50_u8, 255_u8));
+            canv.set_pixel_at(i, j, (200_u8, 226_u8, 152_u8, 255_u8));
         }
     }
 
     // Right Eye
     for i in 70..170 {
         for j in 300..400 {
-            canv.set_pixel_at(i, j, (180_u8, 2_u8, 50_u8, 255_u8));
+            canv.set_pixel_at(i, j, (200_u8, 226_u8, 152_u8, 255_u8));
         }
     }
 
     // Nose
     for i in 150..300 {
         for j in 225..275 {
-            canv.set_pixel_at(i, j, (180_u8, 2_u8, 50_u8, 255_u8));
+            canv.set_pixel_at(i, j, (200_u8, 226_u8, 152_u8, 255_u8));
         }
     }
 
     // Mouth
     for i in 350..420 {
         for j in 50..450 {
-            canv.set_pixel_at(i, j, (180_u8, 2_u8, 50_u8, 255_u8));
+            canv.set_pixel_at(i, j, (200_u8, 226_u8, 152_u8, 255_u8));
         }
     }
     save_image(Canvas::to_photon(&canv), "assets/canvas_set_pixel.jpg");
