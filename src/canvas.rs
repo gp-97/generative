@@ -34,7 +34,7 @@ impl Canvas {
     }
 
     pub fn get_pixel_at(&self, row: usize, column: usize) -> Option<(u8, u8, u8, u8)> {
-        let idx = row * self.width as usize * 4 + column as usize * 4;
+        let idx = self.index_at(row, column);
         if idx < self.buffer.len() - 4 {
             Some((
                 self.buffer[idx],
@@ -48,7 +48,7 @@ impl Canvas {
     }
 
     pub fn set_pixel_at(&mut self, row: usize, column: usize, pixel: (u8, u8, u8, u8)) {
-        let idx = row * self.width as usize * 4 + column as usize * 4;
+        let idx = self.index_at(row, column);
         if idx < self.buffer.len() - 4 {
             self.buffer[idx] = pixel.0;
             self.buffer[idx + 1] = pixel.1;
@@ -59,6 +59,10 @@ impl Canvas {
 
     pub fn to_photon(canvas: &Canvas) -> PhotonImage {
         PhotonImage::new(canvas.get_buffer(), canvas.get_width(), canvas.get_height())
+    }
+
+    fn index_at(&self, row: usize, column: usize) -> usize {
+        row * self.width as usize * 4 + column as usize * 4
     }
 }
 
