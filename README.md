@@ -10,7 +10,7 @@
   [![Status](https://img.shields.io/badge/status-active-success?style=for-the-badge)]()
   [![GitHub issues](https://img.shields.io/github/issues/gp-97/generative?style=for-the-badge)](https://github.com/gp-97/generative/issues)
   [![GitHub Pull Requests](https://img.shields.io/github/issues-pr/gp-97/generative?style=for-the-badge)](https://github.com/gp-97/generative/pulls)
-  ![Github Workflow](https://github.com/gp-97/generative/actions/workflows/main.yml/badge?style=for-the-badge)
+  ![GitHub Workflow Status](https://img.shields.io/github/workflow/status/gp-97/generative/Continuous%20Integration?logo=github&style=for-the-badge)
 
 </div>
 
