@@ -1,6 +1,6 @@
 pub mod shape2d {
     use crate::canvas;
-    use std::mem::swap;
+    // use std::mem::swap;
 
     pub fn line(canvas: &mut canvas::Canvas, x1: f32, y1: f32, x2: f32, y2: f32, color: (u8, u8, u8, u8)) {
         if x1 == x2 {
@@ -152,10 +152,24 @@ pub mod shape2d {
     //         }
     //     }
     // }
+
+    pub fn line_from_segments(canvas: &mut canvas::Canvas, points: &Vec<f32>, color: (u8, u8, u8, u8)) {
+        for i in (0..(points.len() - 4)).step_by(2) {
+            let x1 = points[i];
+            let y1 = points[i + 1];
+            let x2 = points[i + 2];
+            let y2 = points[i + 3];
+            line(canvas, x1, y1, x2, y2, color);
+        }
+    }
+
     pub fn rectangle(canvas: &mut canvas::Canvas, x1: f32, y1: f32, x2: f32, y2: f32, color: (u8, u8, u8, u8)) {
         line(canvas, x1, y1, x1, y2, color);
         line(canvas, x1, y2, x2, y2, color);
         line(canvas, x2, y2, x2, y1, color);
         line(canvas, x2, y1, x1, y1, color);
     }
+    // pub fn circle(canvas: &mut canvas::Canvas, x: f32, y: f32, radius: f32, color: (u8, u8, u8, u8)) {
+    //     unimplemented!();
+    // }
 }
