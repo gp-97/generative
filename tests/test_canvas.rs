@@ -19,7 +19,7 @@ fn test_get_pixel_at() {
     let p1 = canv.get_pixel_at(112, 134);
     let p2 = canv.get_pixel_at(1120, 1340);
 
-    assert_eq!(p1, Some((0, 0, 0, 0)));
+    assert_eq!(p1, Some((255_u8, 255_u8, 255_u8, 255_u8)));
     assert_eq!(p2, None);
 }
 
