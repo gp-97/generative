@@ -24,24 +24,17 @@ fn test_line_xy() {
     let img = Canvas::to_photon(&canvas);
     save_image(img, "assets/canvas_line_XY.png");
 }
-#[test]
-fn test_line_aa() {
-    let mut canvas = Canvas::new(512, 512);
-    canvas.fill((0, 0, 0, 255_u8));
-    shape2d::line_aa(&mut canvas, 100.0, 80.0, 50.0, 200.0, (180_u8, 56_u8, 210_u8, 255_u8));
-    save_image(Canvas::to_photon(&canvas), "assets/canvas_lineAA_XY.png");
-}
+// #[test]
+// fn test_line_aa() {
+//     let mut canvas = Canvas::new(10, 10);
+//     canvas.fill((0, 0, 0, 255_u8));
+//     shape2d::line_aa(&mut canvas, 1.0, 2.0, 5.0, 8.0, (180_u8, 56_u8, 210_u8, 255_u8));
+//     save_image(Canvas::to_photon(&canvas), "assets/canvas_lineAA_XY.png");
+// }
 #[test]
 fn test_rectangle() {
     let mut canvas = Canvas::new(512, 512);
     canvas.fill((0, 0, 0, 0_u8));
-
-    // shape2d::rectangle(&mut canvas, 32.0, 32.0, 480.0, 480.0, (r, g, b, a));
-
-    // shape2d::rectangle(&mut canvas, 32.0, 32.0, 100.0, 480.0, (r - 255, g + 255, b, a));
-    // shape2d::rectangle(&mut canvas, 32.0, 32.0, 480.0, 100.0, (r - 255, g, b + 255, a));
-    // shape2d::rectangle(&mut canvas, 412.0, 32.0, 480.0, 480.0, (r, g, b, a));
-    // shape2d::rectangle(&mut canvas, 256.0, 412.0, 480.0, 480.0, (r - 128, g + 128, b, a));
 
     for i in (-15..16).step_by(1) {
         shape2d::rectangle(
