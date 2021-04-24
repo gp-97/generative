@@ -3,6 +3,4 @@
 
 <h1 align="center">Generative</h1>
 
----
-
 Generative arts library in Rust
