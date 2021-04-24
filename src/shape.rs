@@ -26,46 +26,35 @@ pub mod shape2d {
                 x_start += 1.0;
             }
         } else {
-            let mut x1 = x1 as i32;
-            let mut y1 = y1 as i32;
-            let mut x2 = x2 as i32;
-            let mut y2 = y2 as i32;
-            if y2 < y1 {
-                swap(&mut x1, &mut x2);
-                swap(&mut y1, &mut y2);
+            // All octant Bresenham's line algorithm using integer incremental errors
+            let mut x1 = x1;
+            let mut y1 = y1;
+
+            let dx = (x2 - x1).abs();
+            let mut sx = 1.0;
+            if x2 < x1 {
+                sx = -1.0;
             }
-            let dx = x2 - x1;
-            let dy = y2 - y1;
+            let dy = ((y2 - y1).abs()) * -1.0;
+            let mut sy = 1.0;
+            if y2 < y1 {
+                sy = -1.0;
+            }
+            let mut err = dx + dy;
 
-            let mut x = x1;
-            let mut y = y1;
-
-            if dx.abs() > dy.abs() {
-                canvas.set_pixel_at(x as usize, y as usize, color);
-                let mut pk = 2 * dy.abs() - dx.abs();
-
-                for _ in 0..(dx.abs() as usize) {
-                    x += 1;
-                    if pk < 0 {
-                        pk += 2 * dy.abs();
-                    } else {
-                        y += 1;
-                        pk += 2 * dy.abs() - 2 * dx.abs();
-                    }
-                    canvas.set_pixel_at(x as usize, y as usize, color);
+            loop {
+                canvas.set_pixel_at(x1 as usize, y1 as usize, color);
+                if x1 == x2 && y1 == y2 {
+                    break;
                 }
-            } else {
-                canvas.set_pixel_at(x as usize, y as usize, color);
-                let mut pk = 2 * dx.abs() - dy.abs();
-                for _ in 0..(dy.abs() as usize) {
-                    y += 1;
-                    if pk < 0 {
-                        pk += 2 * dx.abs();
-                    } else {
-                        x -= 1;
-                        pk += 2 * dx.abs() - 2 * dy.abs();
-                    }
-                    canvas.set_pixel_at(x as usize, y as usize, color);
+                let e2 = 2.0 * err;
+                if e2 >= dy {
+                    err += dy;
+                    x1 += sx;
+                }
+                if e2 <= dx {
+                    err += dx;
+                    y1 += sy;
                 }
             }
         }

@@ -19,7 +19,7 @@ fn test_line_y() {
 fn test_line_xy() {
     let mut canvas = Canvas::new(512, 512);
     canvas.fill((0, 0, 0, 255_u8));
-    shape2d::line(&mut canvas, 60.0, 80.0, 400.0, 400.0, (180_u8, 56_u8, 210_u8, 255_u8));
+    shape2d::line(&mut canvas, 100.0, 255.0, 200.0, 511.0, (180_u8, 56_u8, 210_u8, 255_u8));
 
     let img = Canvas::to_photon(&canvas);
     save_image(img, "assets/canvas_line_XY.png");
@@ -43,7 +43,7 @@ fn test_rectangle() {
     // shape2d::rectangle(&mut canvas, 412.0, 32.0, 480.0, 480.0, (r, g, b, a));
     // shape2d::rectangle(&mut canvas, 256.0, 412.0, 480.0, 480.0, (r - 128, g + 128, b, a));
 
-    for i in (-15..16).step_by(5) {
+    for i in (-15..16).step_by(1) {
         shape2d::rectangle(
             &mut canvas,
             32.0 + i as f32,
