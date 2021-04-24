@@ -8,7 +8,7 @@ pub struct Canvas {
 
 impl Canvas {
     pub fn new(width: u32, height: u32) -> Self {
-        let buffer: Vec<u8> = vec![0; (width * height * 4) as usize];
+        let buffer: Vec<u8> = vec![255; (width * height * 4) as usize];
         Self { width, height, buffer }
     }
 
@@ -25,7 +25,7 @@ impl Canvas {
     }
 
     pub fn fill(&mut self, color: (u8, u8, u8, u8)) {
-        for i in (0..self.buffer.len() - 4).step_by(4) {
+        for i in (0..self.buffer.len()).step_by(4) {
             self.buffer[i] = color.0;
             self.buffer[i + 1] = color.1;
             self.buffer[i + 2] = color.2;
@@ -48,12 +48,14 @@ impl Canvas {
     }
 
     pub fn set_pixel_at(&mut self, row: usize, column: usize, pixel: (u8, u8, u8, u8)) {
-        let idx = self.index_at(row, column);
-        if idx < self.buffer.len() - 4 {
-            self.buffer[idx] = pixel.0;
-            self.buffer[idx + 1] = pixel.1;
-            self.buffer[idx + 2] = pixel.2;
-            self.buffer[idx + 3] = pixel.3;
+        if row < self.height as usize && column < self.width as usize {
+            let idx = self.index_at(row, column);
+            if idx < self.buffer.len() - 4 {
+                self.buffer[idx] = pixel.0;
+                self.buffer[idx + 1] = pixel.1;
+                self.buffer[idx + 2] = pixel.2;
+                self.buffer[idx + 3] = pixel.3;
+            }
         }
     }
 
