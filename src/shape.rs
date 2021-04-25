@@ -180,8 +180,16 @@ pub mod shape2d {
     pub fn square(canvas: &mut canvas::Canvas, x: f32, y: f32, edge: f32, color: (u8, u8, u8, u8)) {
         let x2 = x + edge;
         let y2 = y + edge;
-
         rectangle(canvas, x, y, x2, y2, color);
+    }
+
+    pub fn quad(canvas: &mut canvas::Canvas, points: &Vec<f32>, color: (u8, u8, u8, u8)) {
+        if points.len() >= 2 {
+            let mut points_new = points.clone();
+            points_new.push(points[0]);
+            points_new.push(points[1]);
+            line_from_segments(canvas, &points_new, color);
+        }
     }
 
     /// Mid Point Circle Algorithm

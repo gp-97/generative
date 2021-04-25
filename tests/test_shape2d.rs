@@ -41,6 +41,15 @@ fn test_square() {
 }
 
 #[test]
+fn test_quad() {
+    let mut canvas = Canvas::new(512, 512);
+    canvas.fill((0, 0, 0, 255));
+    let p: Vec<f32> = vec![200.0, 33.5, 19.0, 324.0, 443.0, 229.0, 335.0, 267.0];
+    shape2d::quad(&mut canvas, &p, (255, 144, 31, 255));
+    save_image(Canvas::to_photon(&canvas), "assets/canvas_quad.png");
+}
+
+#[test]
 fn test_line_from_segments() {
     let mut canvas = Canvas::new(512, 512);
     canvas.fill((0, 0, 0, 255));
@@ -52,6 +61,6 @@ fn test_line_from_segments() {
 fn test_circle() {
     let mut canvas = Canvas::new(512, 512);
     canvas.fill((0, 0, 0, 255));
-    shape2d::circle(&mut canvas, 256.0, 256.0, 200.0, (255, 144, 31, 255));
+    shape2d::circle(&mut canvas, 256.0, 256.0, 1.0, (255, 144, 31, 255));
     save_image(Canvas::to_photon(&canvas), "assets/canvas_circle.png");
 }
