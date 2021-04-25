@@ -61,6 +61,6 @@ fn test_line_from_segments() {
 fn test_circle() {
     let mut canvas = Canvas::new(512, 512);
     canvas.fill((0, 0, 0, 255));
-    shape2d::circle(&mut canvas, 256.0, 256.0, 1.0, (255, 144, 31, 255));
+    shape2d::circle(&mut canvas, 256.0, 256.0, 100.0, (255, 144, 31, 255));
     save_image(Canvas::to_photon(&canvas), "assets/canvas_circle.png");
 }
