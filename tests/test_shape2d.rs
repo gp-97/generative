@@ -33,6 +33,14 @@ fn test_rectangle() {
 }
 
 #[test]
+fn test_square() {
+    let mut canvas = Canvas::new(512, 512);
+    canvas.fill((0, 0, 0, 0_u8));
+    shape2d::square(&mut canvas, 50.0, 128.0, 256.0, (140, 30, 255, 255));
+    save_image(Canvas::to_photon(&canvas), "assets/canvas_square.png");
+}
+
+#[test]
 fn test_line_from_segments() {
     let mut canvas = Canvas::new(512, 512);
     canvas.fill((0, 0, 0, 255));
