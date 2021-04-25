@@ -21,14 +21,14 @@
 Currently it is in nascent stage and is under development and thus is highly unstable.
 
 ## Current features:
-- [] 2D Shape
+- [ ] 2D Shape
   - [x] Lines
   - [x] Line from multiple points
   - [x] Squares
   - [x] Rectangles
   - [x] Quads
   - [x] Circles
-  - [] Ellipse
+  - [ ] Ellipse
 
 ## TODO:
 - A lot of things
