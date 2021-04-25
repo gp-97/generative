@@ -27,18 +27,20 @@ pub mod shape2d {
             }
         } else {
             // All octant Bresenham's line algorithm using integer incremental errors
-            let mut x1 = x1;
-            let mut y1 = y1;
+            let mut x1 = x1 as i32;
+            let mut y1 = y1 as i32;
+            let x2 = x2 as i32;
+            let y2 = y2 as i32;
 
             let dx = (x2 - x1).abs();
-            let mut sx = 1.0;
+            let mut sx = 1;
             if x2 < x1 {
-                sx = -1.0;
+                sx = -1;
             }
-            let dy = ((y2 - y1).abs()) * -1.0;
-            let mut sy = 1.0;
+            let dy = ((y2 - y1).abs()) * -1;
+            let mut sy = 1;
             if y2 < y1 {
-                sy = -1.0;
+                sy = -1;
             }
             let mut err = dx + dy;
 
@@ -47,7 +49,7 @@ pub mod shape2d {
                 if x1 == x2 && y1 == y2 {
                     break;
                 }
-                let e2 = 2.0 * err;
+                let e2 = err + err;
                 if e2 >= dy {
                     err += dy;
                     x1 += sx;
@@ -154,7 +156,7 @@ pub mod shape2d {
     // }
 
     pub fn line_from_segments(canvas: &mut canvas::Canvas, points: &Vec<f32>, color: (u8, u8, u8, u8)) {
-        for i in (0..(points.len() - 4)).step_by(2) {
+        for i in (0..(points.len() - 2)).step_by(2) {
             let x1 = points[i];
             let y1 = points[i + 1];
             let x2 = points[i + 2];

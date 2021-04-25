@@ -36,7 +36,7 @@ fn test_rectangle() {
 fn test_line_from_segments() {
     let mut canvas = Canvas::new(512, 512);
     canvas.fill((0, 0, 0, 255));
-    let p: Vec<f32> = vec![200.0, 330.5, 19.0, 324.0, 443.0, 229.0, 335.0, 267.0];
+    let p: Vec<f32> = vec![200.0, 33.5, 19.0, 324.0, 443.0, 229.0, 335.0, 267.0];
     shape2d::line_from_segments(&mut canvas, &p, (255, 144, 31, 255));
     save_image(Canvas::to_photon(&canvas), "assets/canvas_from_segments.png");
 }
