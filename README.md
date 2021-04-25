@@ -21,8 +21,9 @@
 Currently it is in nascent stage and is under development and thus is highly unstable.
 
 ## Current features:
-- Lines (Some parts are still unstable)
+- Lines + Line from segments
 - Rectangles
+- Circles
 
 ## TODO:
 - A lot of things
