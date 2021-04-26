@@ -21,7 +21,9 @@ pub mod shape2d {
         }
         pub fn draw(&self, canvas: &mut canvas::Canvas) {
             for point in self.state.iter() {
-                canvas.set_pixel_at((*point).0 as usize, (*point).1 as usize, self.color);
+                if (*point).0 >= 0.0 && (*point).1 >= 0.0 {
+                    canvas.set_pixel_at((*point).0 as usize, (*point).1 as usize, self.color);
+                }
             }
         }
         fn calculate(&mut self) {
@@ -125,7 +127,9 @@ pub mod shape2d {
         }
         pub fn draw(&self, canvas: &mut canvas::Canvas) {
             for point in self.state.iter() {
-                canvas.set_pixel_at((*point).0 as usize, (*point).1 as usize, self.color);
+                if (*point).0 >= 0.0 && (*point).1 >= 0.0 {
+                    canvas.set_pixel_at((*point).0 as usize, (*point).1 as usize, self.color);
+                }
             }
         }
 
@@ -179,7 +183,9 @@ pub mod shape2d {
 
         pub fn draw(&self, canvas: &mut canvas::Canvas) {
             for point in self.state.iter() {
-                canvas.set_pixel_at((*point).0 as usize, (*point).1 as usize, self.color);
+                if (*point).0 >= 0.0 && (*point).1 >= 0.0 {
+                    canvas.set_pixel_at((*point).0 as usize, (*point).1 as usize, self.color);
+                }
             }
         }
 
@@ -217,7 +223,9 @@ pub mod shape2d {
 
         pub fn draw(&self, canvas: &mut canvas::Canvas) {
             for point in self.state.iter() {
-                canvas.set_pixel_at((*point).0 as usize, (*point).1 as usize, self.color);
+                if (*point).0 >= 0.0 && (*point).1 >= 0.0 {
+                    canvas.set_pixel_at((*point).0 as usize, (*point).1 as usize, self.color);
+                }
             }
         }
 
@@ -254,10 +262,9 @@ pub mod shape2d {
 
         pub fn draw(&self, canvas: &mut canvas::Canvas) {
             for point in self.state.iter() {
-                if (*point).0 < 0.0 || (*point).1 < 0.0 {
-                    continue;
+                if (*point).0 >= 0.0 && (*point).1 >= 0.0 {
+                    canvas.set_pixel_at((*point).0 as usize, (*point).1 as usize, self.color);
                 }
-                canvas.set_pixel_at((*point).0 as usize, (*point).1 as usize, self.color);
             }
         }
 
