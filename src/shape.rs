@@ -10,12 +10,13 @@ pub mod shape2d {
 
     impl Line {
         pub fn new(points: Vec<(f32, f32)>, color: (u8, u8, u8, u8), thickness: u8) -> Self {
-            Self {
+            let line = Self {
                 points,
                 color,
                 thickness,
                 state: vec![],
-            }
+            };
+            line
         }
         pub fn draw(&mut self, canvas: &mut canvas::Canvas) {
             if !self.points.is_empty() {
