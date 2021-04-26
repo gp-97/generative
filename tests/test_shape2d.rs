@@ -28,7 +28,7 @@ fn test_line_xy() {
 fn test_rectangle() {
     let mut canvas = Canvas::new(512, 512);
     canvas.fill((0, 0, 0, 0_u8));
-    shape2d::rectangle(&mut canvas, 256.0, 412.0, 480.0, 480.0, (140, 30, 255, 255));
+    shape2d::rectangle(&mut canvas, 32.0, 32.0, 480.0, 480.0, (140, 30, 255, 255));
     save_image(Canvas::to_photon(&canvas), "assets/canvas_rectangle.png");
 }
 
@@ -61,6 +61,6 @@ fn test_line_from_segments() {
 fn test_circle() {
     let mut canvas = Canvas::new(512, 512);
     canvas.fill((0, 0, 0, 255));
-    shape2d::circle(&mut canvas, 256.0, 256.0, 100.0, (255, 144, 31, 255));
+    shape2d::circle(&mut canvas, 256.0, 256.0, 100.0, (255, 144, 31, 128));
     save_image(Canvas::to_photon(&canvas), "assets/canvas_circle.png");
 }
