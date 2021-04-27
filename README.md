@@ -6,10 +6,10 @@
 
 <div align="center">
   
-  [![GitHub license](https://img.shields.io/github/license/gp-97/generative?style=for-the-badge)](https://github.com/gp-97/generative/blob/master/LICENSE)
-  [![Status](https://img.shields.io/badge/status-active-success?style=for-the-badge)]()
-  [![GitHub issues](https://img.shields.io/github/issues/gp-97/generative?style=for-the-badge)](https://github.com/gp-97/generative/issues)
-  [![GitHub Pull Requests](https://img.shields.io/github/issues-pr/gp-97/generative?style=for-the-badge)](https://github.com/gp-97/generative/pulls)
+  [![GitHub license](https://img.shields.io/github/license/gp-97/generative?style=for-the-badge&logo=apache)](https://github.com/gp-97/generative/blob/master/LICENSE)
+  [![Status](https://img.shields.io/badge/status-active-success?style=for-the-badge&logo=statuspal)]()
+  [![GitHub issues](https://img.shields.io/github/issues/gp-97/generative?style=for-the-badge&logo=github)](https://github.com/gp-97/generative/issues)
+  [![GitHub Pull Requests](https://img.shields.io/github/issues-pr/gp-97/generative?style=for-the-badge&logo=github-actions)](https://github.com/gp-97/generative/pulls)
   ![GitHub Workflow Status](https://img.shields.io/github/workflow/status/gp-97/generative/Continuous%20Integration?logo=github&style=for-the-badge)
 
 </div>
