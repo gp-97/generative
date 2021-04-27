@@ -326,8 +326,6 @@ pub mod shape2d {
                     }
                 }
             }
-            // self.state.clear();
-            // self.calculate();
         }
     }
 
@@ -457,114 +455,41 @@ pub mod shape2d {
 
         fn calculate(&mut self) {
             let radius = self.radius as isize;
-            let mut x0 = 0;
-            let mut y0 = radius;
-            let mut d = 3 - (radius << 1);
+            let mut x = radius;
+            let mut y = 0_isize;
+            let mut d = 1 - radius;
+            let xc = self.point_center.0 as isize;
+            let yc = self.point_center.1 as isize;
 
-            self.put_symmetric_pixels(x0, y0);
-
-            while x0 <= y0 {
-                if d <= 0 {
-                    d += (x0 << 2) + 6;
-                } else {
-                    d += (x0 << 2) - (y0 << 2) + 10;
-                    y0 -= 1;
-                }
-                x0 += 1;
-                self.put_symmetric_pixels(x0, y0);
+            if radius > 0 {
+                self.state.push(((x + xc) as f32, (-y + yc) as f32));
+                self.state.push(((y + xc) as f32, (x + yc) as f32));
+                self.state.push(((-y + xc) as f32, (x + yc) as f32));
             }
-        }
 
-        fn put_symmetric_pixels(&mut self, x_center: isize, y_center: isize) {
-            let x = self.point_center.0 as isize;
-            let y = self.point_center.1 as isize;
-            // Octant 1
+            while x > y {
+                y += 1;
+                if d <= 0 {
+                    d += (y << 1) + 1;
+                } else {
+                    x -= 1;
+                    d += (y << 1) - (x << 1) + 1;
+                }
+                if x < y {
+                    break;
+                }
+                self.state.push(((x + xc) as f32, (y + yc) as f32));
+                self.state.push(((-x + xc) as f32, (y + yc) as f32));
+                self.state.push(((x + xc) as f32, (-y + yc) as f32));
+                self.state.push(((-x + xc) as f32, (-y + yc) as f32));
 
-            self.state.push((-(y + y_center) as f32, (x + x_center) as f32));
-            self.state.push((-(-y + y_center) as f32, (x + x_center) as f32));
-            self.state.push((-(-y + y_center) as f32, (-x + x_center) as f32));
-            self.state.push((-(y + y_center) as f32, (-x + x_center) as f32));
-            self.state.push((-(x + y_center) as f32, (y + x_center) as f32));
-            self.state.push((-(-x + y_center) as f32, (y + x_center) as f32));
-            self.state.push((-(-x + y_center) as f32, (-y + x_center) as f32));
-            self.state.push((-(x + y_center) as f32, (-y + x_center) as f32));
-
-            // Octant 2
-
-            self.state.push((-(x + x_center) as f32, (y + y_center) as f32));
-            self.state.push((-(x + x_center) as f32, (-y + y_center) as f32));
-            self.state.push((-(-x + x_center) as f32, (-y + y_center) as f32));
-            self.state.push((-(-x + x_center) as f32, (y + y_center) as f32));
-            self.state.push((-(y + x_center) as f32, (x + y_center) as f32));
-            self.state.push((-(y + x_center) as f32, (-x + y_center) as f32));
-            self.state.push((-(-y + x_center) as f32, (-x + y_center) as f32));
-            self.state.push((-(-y + x_center) as f32, (x + y_center) as f32));
-
-            // Octant 3
-
-            self.state.push(((x + x_center) as f32, (y + y_center) as f32));
-            self.state.push(((x + x_center) as f32, (-y + y_center) as f32));
-            self.state.push(((-x + x_center) as f32, (-y + y_center) as f32));
-            self.state.push(((-x + x_center) as f32, (y + y_center) as f32));
-            self.state.push(((y + x_center) as f32, (x + y_center) as f32));
-            self.state.push(((y + x_center) as f32, (-x + y_center) as f32));
-            self.state.push(((-y + x_center) as f32, (-x + y_center) as f32));
-            self.state.push(((-y + x_center) as f32, (x + y_center) as f32));
-
-            // Octant 4
-
-            self.state.push(((y + y_center) as f32, (x + x_center) as f32));
-            self.state.push(((-y + y_center) as f32, (x + x_center) as f32));
-            self.state.push(((-y + y_center) as f32, (-x + x_center) as f32));
-            self.state.push(((y + y_center) as f32, (-x + x_center) as f32));
-            self.state.push(((x + y_center) as f32, (y + x_center) as f32));
-            self.state.push(((-x + y_center) as f32, (y + x_center) as f32));
-            self.state.push(((-x + y_center) as f32, (-y + x_center) as f32));
-            self.state.push(((x + y_center) as f32, (-y + x_center) as f32));
-
-            // Octant 5
-
-            self.state.push(((y + y_center) as f32, -(x + x_center) as f32));
-            self.state.push(((-y + y_center) as f32, -(x + x_center) as f32));
-            self.state.push(((-y + y_center) as f32, -(-x + x_center) as f32));
-            self.state.push(((y + y_center) as f32, -(-x + x_center) as f32));
-            self.state.push(((x + y_center) as f32, -(y + x_center) as f32));
-            self.state.push(((-x + y_center) as f32, -(y + x_center) as f32));
-            self.state.push(((-x + y_center) as f32, -(-y + x_center) as f32));
-            self.state.push(((x + y_center) as f32, -(-y + x_center) as f32));
-
-            // Octant 6
-
-            self.state.push(((x + x_center) as f32, -(y + y_center) as f32));
-            self.state.push(((x + x_center) as f32, -(-y + y_center) as f32));
-            self.state.push(((-x + x_center) as f32, -(-y + y_center) as f32));
-            self.state.push(((-x + x_center) as f32, -(y + y_center) as f32));
-            self.state.push(((y + x_center) as f32, -(x + y_center) as f32));
-            self.state.push(((y + x_center) as f32, -(-x + y_center) as f32));
-            self.state.push(((-y + x_center) as f32, -(-x + y_center) as f32));
-            self.state.push(((-y + x_center) as f32, -(x + y_center) as f32));
-
-            // Octant 7
-
-            self.state.push((-(x + x_center) as f32, -(y + y_center) as f32));
-            self.state.push((-(x + x_center) as f32, -(-y + y_center) as f32));
-            self.state.push((-(-x + x_center) as f32, -(-y + y_center) as f32));
-            self.state.push((-(-x + x_center) as f32, -(y + y_center) as f32));
-            self.state.push((-(y + x_center) as f32, -(x + y_center) as f32));
-            self.state.push((-(y + x_center) as f32, -(-x + y_center) as f32));
-            self.state.push((-(-y + x_center) as f32, -(-x + y_center) as f32));
-            self.state.push((-(-y + x_center) as f32, -(x + y_center) as f32));
-
-            // Octant 8
-
-            self.state.push((-(y + y_center) as f32, -(x + x_center) as f32));
-            self.state.push((-(-y + y_center) as f32, -(x + x_center) as f32));
-            self.state.push((-(-y + y_center) as f32, -(-x + x_center) as f32));
-            self.state.push((-(y + y_center) as f32, -(-x + x_center) as f32));
-            self.state.push((-(x + y_center) as f32, -(y + x_center) as f32));
-            self.state.push((-(-x + y_center) as f32, -(y + x_center) as f32));
-            self.state.push((-(-x + y_center) as f32, -(-y + x_center) as f32));
-            self.state.push((-(x + y_center) as f32, -(-y + x_center) as f32));
+                if x != y {
+                    self.state.push(((y + xc) as f32, (x + yc) as f32));
+                    self.state.push(((-y + xc) as f32, (x + yc) as f32));
+                    self.state.push(((y + xc) as f32, (-x + yc) as f32));
+                    self.state.push(((-y + xc) as f32, (-x + yc) as f32));
+                }
+            }
         }
 
         pub fn transform(&mut self, operation: Transform) {
@@ -584,11 +509,15 @@ pub mod shape2d {
                     for point in self.state.iter_mut() {
                         *point = transforms::shear_x((*point).0, (*point).1, x_ref, y_ref, shx);
                     }
+                    self.point_center =
+                        transforms::shear_x(self.point_center.0, self.point_center.1, x_ref, y_ref, shx);
                 }
                 Transform::ShearY(x_ref, y_ref, shy) => {
                     for point in self.state.iter_mut() {
                         *point = transforms::shear_y((*point).0, (*point).1, x_ref, y_ref, shy);
                     }
+                    self.point_center =
+                        transforms::shear_y(self.point_center.0, self.point_center.1, x_ref, y_ref, shy);
                 }
             }
         }
