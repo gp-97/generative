@@ -26,7 +26,7 @@ Currently it is in nascent stage and is under development and thus is highly uns
   - [x] Line from multiple points
   - [x] Squares
   - [x] Rectangles
-  - [x] Quads
+  - [x] Polygons
   - [x] Circles
   - [ ] Ellipse
 

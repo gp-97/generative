@@ -1,6 +1,7 @@
 pub mod shape2d {
     use crate::canvas;
-
+    use crate::transforms;
+    use crate::Transform;
     pub struct Line {
         points: Vec<(f32, f32)>,
         color: (u8, u8, u8, u8),
@@ -19,6 +20,23 @@ pub mod shape2d {
             line.calculate();
             line
         }
+
+        pub fn get_color(&self) -> (u8, u8, u8, u8) {
+            self.color
+        }
+
+        pub fn get_thickness(&self) -> u8 {
+            self.thickness
+        }
+
+        pub fn set_color(&mut self, color: (u8, u8, u8, u8)) {
+            self.color = color;
+        }
+
+        pub fn set_thickness(&mut self, thickness: u8) {
+            self.thickness = thickness;
+        }
+
         pub fn draw(&self, canvas: &mut canvas::Canvas) {
             for point in self.state.iter() {
                 if (*point).0 >= 0.0 && (*point).1 >= 0.0 {
@@ -105,6 +123,32 @@ pub mod shape2d {
                 }
             }
         }
+        pub fn transform(&mut self, operation: Transform) {
+            match operation {
+                Transform::TRANSLATE(tx, ty) => {
+                    for point in self.points.iter_mut() {
+                        *point = transforms::translate((*point).0, (*point).1, tx, ty);
+                    }
+                }
+                Transform::ROTATE(x_pivot, y_pivot, angle) => {
+                    for point in self.points.iter_mut() {
+                        *point = transforms::rotate((*point).0, (*point).1, x_pivot, y_pivot, angle);
+                    }
+                }
+                Transform::ShearX(x_ref, y_ref, shx) => {
+                    for point in self.points.iter_mut() {
+                        *point = transforms::shear_x((*point).0, (*point).1, x_ref, y_ref, shx);
+                    }
+                }
+                Transform::ShearY(x_ref, y_ref, shy) => {
+                    for point in self.points.iter_mut() {
+                        *point = transforms::shear_y((*point).0, (*point).1, x_ref, y_ref, shy);
+                    }
+                }
+            }
+            self.state.clear();
+            self.calculate();
+        }
     }
 
     pub struct Rectangle {
@@ -125,6 +169,23 @@ pub mod shape2d {
             rect.calculate();
             rect
         }
+
+        pub fn get_color(&self) -> (u8, u8, u8, u8) {
+            self.color
+        }
+
+        pub fn get_thickness(&self) -> u8 {
+            self.thickness
+        }
+
+        pub fn set_color(&mut self, color: (u8, u8, u8, u8)) {
+            self.color = color;
+        }
+
+        pub fn set_thickness(&mut self, thickness: u8) {
+            self.thickness = thickness;
+        }
+
         pub fn draw(&self, canvas: &mut canvas::Canvas) {
             for point in self.state.iter() {
                 if (*point).0 >= 0.0 && (*point).1 >= 0.0 {
@@ -158,6 +219,32 @@ pub mod shape2d {
                 }
             }
         }
+        pub fn transform(&mut self, operation: Transform) {
+            match operation {
+                Transform::TRANSLATE(tx, ty) => {
+                    for point in self.state.iter_mut() {
+                        *point = transforms::translate((*point).0, (*point).1, tx, ty);
+                    }
+                }
+                Transform::ROTATE(x_pivot, y_pivot, angle) => {
+                    for point in self.state.iter_mut() {
+                        *point = transforms::rotate((*point).0, (*point).1, x_pivot, y_pivot, angle);
+                    }
+                }
+                Transform::ShearX(x_ref, y_ref, shx) => {
+                    for point in self.state.iter_mut() {
+                        *point = transforms::shear_x((*point).0, (*point).1, x_ref, y_ref, shx);
+                    }
+                }
+                Transform::ShearY(x_ref, y_ref, shy) => {
+                    for point in self.state.iter_mut() {
+                        *point = transforms::shear_y((*point).0, (*point).1, x_ref, y_ref, shy);
+                    }
+                }
+            }
+            // self.state.clear();
+            // self.calculate();
+        }
     }
 
     pub struct Square {
@@ -189,6 +276,22 @@ pub mod shape2d {
             }
         }
 
+        pub fn get_color(&self) -> (u8, u8, u8, u8) {
+            self.color
+        }
+
+        pub fn get_thickness(&self) -> u8 {
+            self.thickness
+        }
+
+        pub fn set_color(&mut self, color: (u8, u8, u8, u8)) {
+            self.color = color;
+        }
+
+        pub fn set_thickness(&mut self, thickness: u8) {
+            self.thickness = thickness;
+        }
+
         fn calculate(&mut self) {
             let x1 = self.points.0;
             let y1 = self.points.1;
@@ -200,25 +303,67 @@ pub mod shape2d {
                 self.state.push(*point);
             }
         }
+        pub fn transform(&mut self, operation: Transform) {
+            match operation {
+                Transform::TRANSLATE(tx, ty) => {
+                    for point in self.state.iter_mut() {
+                        *point = transforms::translate((*point).0, (*point).1, tx, ty);
+                    }
+                }
+                Transform::ROTATE(x_pivot, y_pivot, angle) => {
+                    for point in self.state.iter_mut() {
+                        *point = transforms::rotate((*point).0, (*point).1, x_pivot, y_pivot, angle);
+                    }
+                }
+                Transform::ShearX(x_ref, y_ref, shx) => {
+                    for point in self.state.iter_mut() {
+                        *point = transforms::shear_x((*point).0, (*point).1, x_ref, y_ref, shx);
+                    }
+                }
+                Transform::ShearY(x_ref, y_ref, shy) => {
+                    for point in self.state.iter_mut() {
+                        *point = transforms::shear_y((*point).0, (*point).1, x_ref, y_ref, shy);
+                    }
+                }
+            }
+            // self.state.clear();
+            // self.calculate();
+        }
     }
 
-    pub struct Quad {
+    pub struct Polygon {
         points: Vec<(f32, f32)>,
         color: (u8, u8, u8, u8),
         thickness: u8,
         state: Vec<(f32, f32)>,
     }
 
-    impl Quad {
+    impl Polygon {
         pub fn new(points: Vec<(f32, f32)>, color: (u8, u8, u8, u8), thickness: u8) -> Self {
-            let mut quad = Self {
+            let mut poly = Self {
                 points,
                 color,
                 thickness,
                 state: vec![],
             };
-            quad.calculate();
-            quad
+            poly.calculate();
+            poly
+        }
+
+        pub fn get_color(&self) -> (u8, u8, u8, u8) {
+            self.color
+        }
+
+        pub fn get_thickness(&self) -> u8 {
+            self.thickness
+        }
+
+        pub fn set_color(&mut self, color: (u8, u8, u8, u8)) {
+            self.color = color;
+        }
+
+        pub fn set_thickness(&mut self, thickness: u8) {
+            self.thickness = thickness;
         }
 
         pub fn draw(&self, canvas: &mut canvas::Canvas) {
@@ -236,6 +381,32 @@ pub mod shape2d {
             for point in line.state.iter() {
                 self.state.push(*point);
             }
+        }
+        pub fn transform(&mut self, operation: Transform) {
+            match operation {
+                Transform::TRANSLATE(tx, ty) => {
+                    for point in self.points.iter_mut() {
+                        *point = transforms::translate((*point).0, (*point).1, tx, ty);
+                    }
+                }
+                Transform::ROTATE(x_pivot, y_pivot, angle) => {
+                    for point in self.points.iter_mut() {
+                        *point = transforms::rotate((*point).0, (*point).1, x_pivot, y_pivot, angle);
+                    }
+                }
+                Transform::ShearX(x_ref, y_ref, shx) => {
+                    for point in self.points.iter_mut() {
+                        *point = transforms::shear_x((*point).0, (*point).1, x_ref, y_ref, shx);
+                    }
+                }
+                Transform::ShearY(x_ref, y_ref, shy) => {
+                    for point in self.points.iter_mut() {
+                        *point = transforms::shear_y((*point).0, (*point).1, x_ref, y_ref, shy);
+                    }
+                }
+            }
+            self.state.clear();
+            self.calculate();
         }
     }
 
@@ -258,6 +429,22 @@ pub mod shape2d {
             };
             circle.calculate();
             circle
+        }
+
+        pub fn get_color(&self) -> (u8, u8, u8, u8) {
+            self.color
+        }
+
+        pub fn get_thickness(&self) -> u8 {
+            self.thickness
+        }
+
+        pub fn set_color(&mut self, color: (u8, u8, u8, u8)) {
+            self.color = color;
+        }
+
+        pub fn set_thickness(&mut self, thickness: u8) {
+            self.thickness = thickness;
         }
 
         pub fn draw(&self, canvas: &mut canvas::Canvas) {
@@ -378,6 +565,32 @@ pub mod shape2d {
             self.state.push((-(-x + y_center) as f32, -(y + x_center) as f32));
             self.state.push((-(-x + y_center) as f32, -(-y + x_center) as f32));
             self.state.push((-(x + y_center) as f32, -(-y + x_center) as f32));
+        }
+
+        pub fn transform(&mut self, operation: Transform) {
+            match operation {
+                Transform::TRANSLATE(tx, ty) => {
+                    self.point_center = transforms::translate(self.point_center.0, self.point_center.1, tx, ty);
+                    self.state.clear();
+                    self.calculate();
+                }
+                Transform::ROTATE(x_pivot, y_pivot, angle) => {
+                    self.point_center =
+                        transforms::rotate(self.point_center.0, self.point_center.1, x_pivot, y_pivot, angle);
+                    self.state.clear();
+                    self.calculate();
+                }
+                Transform::ShearX(x_ref, y_ref, shx) => {
+                    for point in self.state.iter_mut() {
+                        *point = transforms::shear_x((*point).0, (*point).1, x_ref, y_ref, shx);
+                    }
+                }
+                Transform::ShearY(x_ref, y_ref, shy) => {
+                    for point in self.state.iter_mut() {
+                        *point = transforms::shear_y((*point).0, (*point).1, x_ref, y_ref, shy);
+                    }
+                }
+            }
         }
     }
 }
