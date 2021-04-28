@@ -523,3 +523,121 @@ pub mod shape2d {
         }
     }
 }
+
+pub mod curve {
+    use super::shape2d::Line;
+    use crate::canvas;
+    use crate::helpers::linspace;
+    use crate::Spline;
+    pub struct Curve {
+        points: Vec<(f32, f32)>,
+        color: (u8, u8, u8, u8),
+        thickness: u8,
+        npoints: u32,
+        spline: Spline,
+        state: Vec<(f32, f32)>,
+    }
+
+    impl Curve {
+        pub fn new(
+            points: Vec<(f32, f32)>,
+            color: (u8, u8, u8, u8),
+            thickness: u8,
+            npoints: u32,
+            spline: Spline,
+        ) -> Self {
+            let mut curve = Self {
+                points,
+                color,
+                thickness,
+                npoints,
+                spline,
+                state: vec![],
+            };
+            curve.calculate();
+            curve
+        }
+
+        /// https://en.wikipedia.org/wiki/Centripetal_Catmull%E2%80%93Rom_spline
+        pub fn calculate(&mut self) {
+            let size = self.points.len();
+
+            let mut curve = vec![];
+            for i in 0..(size - 3) {
+                let mut c = self.catmull_rom_spline(
+                    self.points[i],
+                    self.points[i + 1],
+                    self.points[i + 2],
+                    self.points[i + 3],
+                );
+                curve.append(&mut c);
+            }
+            self.state = curve;
+        }
+
+        pub fn draw(&self, canvas: &mut canvas::Canvas) {
+            let drawable = self.state.clone();
+            let line = Line::new(drawable, self.color, self.thickness);
+            line.draw(canvas);
+        }
+        fn knot_j(&self, knot_i: f32, pi: (f32, f32), pj: (f32, f32), alpha: f32) -> f32 {
+            let (xi, yi) = pi;
+            let (xj, yj) = pj;
+            ((xj - xi) * (xj - xi) + (yj - yi) * (yj - yi)).powf(alpha) + knot_i
+        }
+        fn catmull_rom_spline(
+            &self,
+            p0: (f32, f32),
+            p1: (f32, f32),
+            p2: (f32, f32),
+            p3: (f32, f32),
+        ) -> Vec<(f32, f32)> {
+            let mut alpha = match self.spline {
+                Spline::UNIFORM => 0.0,
+                Spline::CENTRIPETAL => 0.5,
+                Spline::CHORDAL => 1.0,
+            };
+
+            alpha /= 2.0;
+
+            let t0 = 0.0;
+            let t1 = self.knot_j(t0, p0, p1, alpha);
+            let t2 = self.knot_j(t1, p1, p2, alpha);
+            let t3 = self.knot_j(t2, p2, p3, alpha);
+
+            let t_lin = linspace(t1, t2, self.npoints);
+            let mut c = vec![];
+
+            for i in 0..t_lin.len() {
+                let t = t_lin[i];
+                let ca10 = (t1 - t) / (t1 - t0);
+                let ca11 = (t - t0) / (t1 - t0);
+
+                let ca20 = (t2 - t) / (t2 - t1);
+                let ca21 = (t - t1) / (t2 - t1);
+
+                let ca30 = (t3 - t) / (t3 - t2);
+                let ca31 = (t - t2) / (t3 - t2);
+
+                let a1 = (ca10 * p0.0 + ca11 * p1.0, ca10 * p0.1 + ca11 * p1.1);
+                let a2 = (ca20 * p1.0 + ca21 * p2.0, ca20 * p1.1 + ca21 * p2.1);
+                let a3 = (ca30 * p2.0 + ca31 * p3.0, ca30 * p2.1 + ca31 * p2.1);
+
+                let cb10 = (t2 - t) / (t2 - t0);
+                let cb11 = (t - t0) / (t2 - t0);
+                let cb20 = (t3 - t) / (t3 - t1);
+                let cb21 = (t - t1) / (t3 - t1);
+
+                let b1 = (cb10 * a1.0 + cb11 * a2.0, cb10 * a1.1 + cb11 * a2.1);
+                let b2 = (cb20 * a2.0 + cb21 * a3.0, cb20 * a2.1 + cb21 * a3.1);
+
+                let cc0 = ca20;
+                let cc1 = ca21;
+
+                let val = (cc0 * b1.0 + cc1 * b2.0, cc0 * b1.1 + cc1 * b2.1);
+                c.push(val);
+            }
+            c
+        }
+    }
+}
