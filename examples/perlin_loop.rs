@@ -38,10 +38,10 @@ fn display(canvas: &mut Canvas) {
         ));
         poly.draw(canvas);
     }
-    canvas.save_as_image("examples/outputs/perlin_loop.png");
 }
 
 fn main() {
     let mut ctx = setup();
     display(&mut ctx);
+    ctx.save_as_image("examples/outputs/perlin_loop.png");
 }
