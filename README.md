@@ -20,7 +20,7 @@
 Currently it is in nascent stage and is somewhat unstable.
 
 ## Example Output: 
-- __Perlin Loop__
+#### Perlin Loop
 ![Perlin Loop](examples/outputs/perlin_loop.png)
 
 ## Current features:
