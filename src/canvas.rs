@@ -1,3 +1,4 @@
+use photon_rs::native::{open_image, save_image};
 use photon_rs::PhotonImage;
 
 pub struct Canvas {
@@ -65,6 +66,24 @@ impl Canvas {
 
     fn index_at(&self, row: usize, column: usize) -> usize {
         row * self.width as usize * 4 + column as usize * 4
+    }
+
+    pub fn save_as_image(&self, image_path: &str) {
+        save_image(Canvas::to_photon(self), image_path);
+    }
+    pub fn image_as_canvas(image_path: &str) -> Self {
+        match open_image(image_path) {
+            Ok(photon_image) => Self {
+                width: photon_image.get_width(),
+                height: photon_image.get_height(),
+                buffer: photon_image.get_raw_pixels(),
+            },
+            Err(_) => Self {
+                width: 512,
+                height: 512,
+                buffer: vec![255; (512 * 512 * 4) as usize],
+            },
+        }
     }
 }
 

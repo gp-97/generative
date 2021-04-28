@@ -2,7 +2,6 @@ use generative::canvas::Canvas;
 use generative::shape::shape2d::Polygon;
 use generative::Transform;
 use perlin2d::PerlinNoise2D;
-use photon_rs::native::save_image;
 
 fn setup() -> Canvas {
     let mut canvas = Canvas::new(3840 * 2, 2160 * 2);
@@ -39,7 +38,7 @@ fn display(canvas: &mut Canvas) {
         ));
         poly.draw(canvas);
     }
-    save_image(Canvas::to_photon(&canvas), "examples/outputs/perlin_loop.png");
+    canvas.save_as_image("examples/outputs/perlin_loop.png");
 }
 
 fn main() {
