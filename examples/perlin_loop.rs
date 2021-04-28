@@ -27,7 +27,7 @@ fn display(canvas: &mut Canvas) {
             ));
             theta += 0.01;
         }
-        let color = (((zoff * 0.0) % 255.0) as u8, 192, 200, 255);
+        let color = (0, 192, 200, 255);
         tx += 0.001;
         ty += 0.001;
         zoff += 0.01;
