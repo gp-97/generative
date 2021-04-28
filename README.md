@@ -19,6 +19,8 @@
 **Generative** (__WIP__) is 2D generational arts creation library written in Rust.
 Currently it is in nascent stage and is somewhat unstable.
 
+## Example Output: 
+- __Perlin Loop__
 ![Perlin Loop](examples/outputs/perlin_loop.png)
 
 ## Current features:
