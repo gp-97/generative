@@ -10,7 +10,7 @@ fn test_translation() {
     let y_pxl = 1_f32;
     let (x_pxl, y_pxl) = transforms::translate(x_pxl, y_pxl, 5.0, 5.0);
     canvas.set_pixel_at(x_pxl as usize, y_pxl as usize, (180, 56, 210, 255));
-    save_image(Canvas::to_photon(&canvas), "assets/canvas_translate_point.png");
+    save_image(Canvas::to_photon(&canvas), "tests/outputs/canvas_translate_point.png");
 }
 
 #[test]
@@ -27,7 +27,7 @@ fn test_rotation() {
         canvas.set_pixel_at(x_pxl as usize, y_pxl as usize, (10, 156, 210, 255));
         i += 0.1;
     }
-    save_image(Canvas::to_photon(&canvas), "assets/canvas_rotate_point.png");
+    save_image(Canvas::to_photon(&canvas), "tests/outputs/canvas_rotate_point.png");
 }
 #[test]
 fn test_shear_x() {
@@ -42,7 +42,7 @@ fn test_shear_x() {
         canvas.set_pixel_at(x_pxl as usize, y_pxl as usize, (180, 156, 10, 255));
         i += 0.1;
     }
-    save_image(Canvas::to_photon(&canvas), "assets/canvas_ShearX.png");
+    save_image(Canvas::to_photon(&canvas), "tests/outputs/canvas_ShearX.png");
 }
 #[test]
 fn test_shear_y() {
@@ -57,5 +57,5 @@ fn test_shear_y() {
         canvas.set_pixel_at(x_pxl as usize, y_pxl as usize, (180, 156, 10, 255));
         i += 0.1;
     }
-    save_image(Canvas::to_photon(&canvas), "assets/canvas_ShearY.png");
+    save_image(Canvas::to_photon(&canvas), "tests/outputs/canvas_ShearY.png");
 }

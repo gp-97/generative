@@ -5,13 +5,13 @@ use photon_rs::native::save_image;
 #[test]
 fn test_init() {
     let canv = Canvas::new(512, 512);
-    save_image(Canvas::to_photon(&canv), "assets/canvas_init.jpg");
+    save_image(Canvas::to_photon(&canv), "tests/outputs/canvas_init.jpg");
 }
 #[test]
 fn test_fill() {
     let mut canv = Canvas::new(512, 512);
     canv.fill((180_u8, 2_u8, 50_u8, 255_u8));
-    save_image(Canvas::to_photon(&canv), "assets/canvas_fill.jpg");
+    save_image(Canvas::to_photon(&canv), "tests/outputs/canvas_fill.jpg");
 }
 #[test]
 fn test_get_pixel_at() {
@@ -56,5 +56,5 @@ fn test_set_pixel_at() {
             canv.set_pixel_at(i, j, (200_u8, 226_u8, 152_u8, 255_u8));
         }
     }
-    save_image(Canvas::to_photon(&canv), "assets/canvas_set_pixel.jpg");
+    save_image(Canvas::to_photon(&canv), "tests/outputs/canvas_set_pixel.jpg");
 }
