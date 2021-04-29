@@ -1,4 +1,5 @@
 pub mod canvas;
+pub mod helpers;
 pub mod shape;
 pub mod transforms;
 
@@ -14,4 +15,11 @@ pub enum Transform {
     ROTATE(f32, f32, Angle),
     ShearX(f32, f32, f32),
     ShearY(f32, f32, f32),
+}
+
+#[derive(Copy, Clone)]
+pub enum Spline {
+    UNIFORM,
+    CENTRIPETAL,
+    CHORDAL,
 }

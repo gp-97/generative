@@ -242,8 +242,6 @@ pub mod shape2d {
                     }
                 }
             }
-            // self.state.clear();
-            // self.calculate();
         }
     }
 
@@ -518,6 +516,265 @@ pub mod shape2d {
                     }
                     self.point_center =
                         transforms::shear_y(self.point_center.0, self.point_center.1, x_ref, y_ref, shy);
+                }
+            }
+        }
+    }
+}
+
+pub mod curve {
+    use super::shape2d::Line;
+    use crate::canvas;
+    use crate::helpers::comb;
+    use crate::helpers::linspace;
+    use crate::transforms;
+    use crate::Spline;
+    use crate::Transform;
+    pub struct Curve {
+        points: Vec<(f32, f32)>,
+        color: (u8, u8, u8, u8),
+        thickness: u8,
+        npoints: u32,
+        spline: Spline,
+        state: Vec<(f32, f32)>,
+    }
+
+    impl Curve {
+        pub fn new(
+            points: Vec<(f32, f32)>,
+            color: (u8, u8, u8, u8),
+            thickness: u8,
+            npoints: u32,
+            spline: Spline,
+        ) -> Self {
+            let mut curve = Self {
+                points,
+                color,
+                thickness,
+                npoints,
+                spline,
+                state: vec![],
+            };
+            curve.calculate();
+            curve
+        }
+
+        pub fn get_color(&self) -> (u8, u8, u8, u8) {
+            self.color
+        }
+
+        pub fn get_thickness(&self) -> u8 {
+            self.thickness
+        }
+
+        pub fn set_color(&mut self, color: (u8, u8, u8, u8)) {
+            self.color = color;
+        }
+
+        pub fn set_thickness(&mut self, thickness: u8) {
+            self.thickness = thickness;
+        }
+
+        /// https://en.wikipedia.org/wiki/Centripetal_Catmull%E2%80%93Rom_spline
+        pub fn calculate(&mut self) {
+            let size = self.points.len();
+
+            let mut curve = vec![];
+            for i in 0..(size - 3) {
+                let mut c = self.catmull_rom_spline(
+                    self.points[i],
+                    self.points[i + 1],
+                    self.points[i + 2],
+                    self.points[i + 3],
+                );
+                curve.append(&mut c);
+            }
+            self.state = curve;
+        }
+
+        pub fn draw(&self, canvas: &mut canvas::Canvas) {
+            let drawable = self.state.clone();
+            let line = Line::new(drawable, self.color, self.thickness);
+            line.draw(canvas);
+        }
+        fn knot_j(&self, knot_i: f32, pi: (f32, f32), pj: (f32, f32), alpha: f32) -> f32 {
+            let (xi, yi) = pi;
+            let (xj, yj) = pj;
+            ((xj - xi).powf(2.0) + (yj - yi).powf(2.0)).powf(alpha) + knot_i
+        }
+        fn catmull_rom_spline(
+            &self,
+            p0: (f32, f32),
+            p1: (f32, f32),
+            p2: (f32, f32),
+            p3: (f32, f32),
+        ) -> Vec<(f32, f32)> {
+            let mut alpha = match self.spline {
+                Spline::UNIFORM => 0.0,
+                Spline::CENTRIPETAL => 0.5,
+                Spline::CHORDAL => 1.0,
+            };
+
+            alpha /= 2.0;
+
+            let t0 = 0.0;
+            let t1 = self.knot_j(t0, p0, p1, alpha);
+            let t2 = self.knot_j(t1, p1, p2, alpha);
+            let t3 = self.knot_j(t2, p2, p3, alpha);
+
+            let t_lin = linspace(t1, t2, self.npoints);
+            let mut c = vec![];
+
+            for i in 0..t_lin.len() {
+                let t = t_lin[i];
+                let ca10 = (t1 - t) / (t1 - t0);
+                let ca11 = (t - t0) / (t1 - t0);
+
+                let ca20 = (t2 - t) / (t2 - t1);
+                let ca21 = (t - t1) / (t2 - t1);
+
+                let ca30 = (t3 - t) / (t3 - t2);
+                let ca31 = (t - t2) / (t3 - t2);
+
+                let a1 = (ca10 * p0.0 + ca11 * p1.0, ca10 * p0.1 + ca11 * p1.1);
+                let a2 = (ca20 * p1.0 + ca21 * p2.0, ca20 * p1.1 + ca21 * p2.1);
+                let a3 = (ca30 * p2.0 + ca31 * p3.0, ca30 * p2.1 + ca31 * p2.1);
+
+                let cb10 = (t2 - t) / (t2 - t0);
+                let cb11 = (t - t0) / (t2 - t0);
+                let cb20 = (t3 - t) / (t3 - t1);
+                let cb21 = (t - t1) / (t3 - t1);
+
+                let b1 = (cb10 * a1.0 + cb11 * a2.0, cb10 * a1.1 + cb11 * a2.1);
+                let b2 = (cb20 * a2.0 + cb21 * a3.0, cb20 * a2.1 + cb21 * a3.1);
+
+                let cc0 = ca20;
+                let cc1 = ca21;
+
+                let val = (cc0 * b1.0 + cc1 * b2.0, cc0 * b1.1 + cc1 * b2.1);
+                c.push(val);
+            }
+            c
+        }
+
+        pub fn transform(&mut self, operation: Transform) {
+            match operation {
+                Transform::TRANSLATE(tx, ty) => {
+                    for point in self.points.iter_mut() {
+                        *point = transforms::translate((*point).0, (*point).1, tx, ty);
+                    }
+                }
+                Transform::ROTATE(x_pivot, y_pivot, angle) => {
+                    for point in self.points.iter_mut() {
+                        *point = transforms::rotate((*point).0, (*point).1, x_pivot, y_pivot, angle);
+                    }
+                }
+                Transform::ShearX(x_ref, y_ref, shx) => {
+                    for point in self.points.iter_mut() {
+                        *point = transforms::shear_x((*point).0, (*point).1, x_ref, y_ref, shx);
+                    }
+                }
+                Transform::ShearY(x_ref, y_ref, shy) => {
+                    for point in self.points.iter_mut() {
+                        *point = transforms::shear_y((*point).0, (*point).1, x_ref, y_ref, shy);
+                    }
+                }
+            }
+            self.state.clear();
+            self.calculate();
+        }
+    }
+
+    pub struct Bezier {
+        npoints: u32,
+        control_points: Vec<(f32, f32)>,
+        degree: usize,
+        color: (u8, u8, u8, u8),
+        thickness: u8,
+        state: Vec<(f32, f32)>,
+    }
+
+    impl Bezier {
+        pub fn new(npoints: u32, control_points: Vec<(f32, f32)>, color: (u8, u8, u8, u8), thickness: u8) -> Self {
+            let degree = control_points.len() - 1;
+            let mut bezier = Self {
+                npoints,
+                control_points,
+                degree,
+                color,
+                thickness,
+                state: vec![],
+            };
+            bezier.calculate();
+            bezier
+        }
+
+        pub fn get_color(&self) -> (u8, u8, u8, u8) {
+            self.color
+        }
+
+        pub fn get_thickness(&self) -> u8 {
+            self.thickness
+        }
+
+        pub fn set_color(&mut self, color: (u8, u8, u8, u8)) {
+            self.color = color;
+        }
+
+        pub fn set_thickness(&mut self, thickness: u8) {
+            self.thickness = thickness;
+        }
+
+        fn blend(&self, i: usize, t: f32) -> f32 {
+            let j = comb(self.degree, i) as f32 * t.powf(i as f32) * (1.0 - t).powf((self.degree - i) as f32);
+            j
+        }
+
+        pub fn calculate(&mut self) {
+            let t_lin = linspace(0.0, 1.0, self.npoints);
+            for t in t_lin.iter() {
+                let mut p = (0.0, 0.0);
+                for (i, point) in self.control_points.iter().enumerate() {
+                    let (x, y) = *point;
+                    let j = self.blend(i, *t);
+                    p.0 += x * j;
+                    p.1 += y * j;
+                }
+                self.state.push(p);
+            }
+        }
+
+        pub fn draw(&self, canvas: &mut canvas::Canvas) {
+            let drawable = self.state.clone();
+            let line = Line::new(drawable, self.color, self.thickness);
+            line.draw(canvas);
+        }
+
+        pub fn transform(&mut self, operation: Transform) {
+            match operation {
+                Transform::TRANSLATE(tx, ty) => {
+                    for point in self.control_points.iter_mut() {
+                        *point = transforms::translate((*point).0, (*point).1, tx, ty);
+                    }
+                    self.state.clear();
+                    self.calculate();
+                }
+                Transform::ROTATE(x_pivot, y_pivot, angle) => {
+                    for point in self.control_points.iter_mut() {
+                        *point = transforms::rotate((*point).0, (*point).1, x_pivot, y_pivot, angle);
+                    }
+                    self.state.clear();
+                    self.calculate();
+                }
+                Transform::ShearX(x_ref, y_ref, shx) => {
+                    for point in self.state.iter_mut() {
+                        *point = transforms::shear_x((*point).0, (*point).1, x_ref, y_ref, shx);
+                    }
+                }
+                Transform::ShearY(x_ref, y_ref, shy) => {
+                    for point in self.state.iter_mut() {
+                        *point = transforms::shear_y((*point).0, (*point).1, x_ref, y_ref, shy);
+                    }
                 }
             }
         }
