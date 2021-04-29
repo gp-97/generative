@@ -32,7 +32,7 @@ Currently it is in nascent stage and is somewhat unstable.
   - [x] Polygons
   - [x] Circles
   - [ ] Ellipse
-- [ ] Curves + Transformations (Translation, Rotation, Shearing in X and Y)
+- [x] Curves + Transformations (Translation, Rotation, Shearing in X and Y)
   - [x] Catmull-Rom Spline (Uniform + Centripetal + Chordal)
   - [x] n-degree Bezier curve
 ## TODO:
