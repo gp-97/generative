@@ -22,6 +22,10 @@ Currently it is in nascent stage and is somewhat unstable.
 ## Example Output: 
 #### Perlin Loop
 ![Perlin Loop](examples/outputs/perlin_loop.png)
+#### Generating sinusoidal wave image
+|Original|Wave Image|
+|:------:|:--------:|
+|![Original](examples/inputs/animal.jpg)|![Generated](examples/outputs/animal_wave.png)|
 
 ## Current features:
 - [ ] 2D Shape + Transformations (Translation, Rotation, Shearing in X and Y)
