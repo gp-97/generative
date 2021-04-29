@@ -1,6 +1,7 @@
 pub mod canvas;
 pub mod helpers;
 pub mod shape;
+pub mod shape_aa;
 pub mod transforms;
 
 #[derive(Copy, Clone)]
