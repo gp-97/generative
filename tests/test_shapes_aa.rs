@@ -5,7 +5,7 @@ use generative::shape_aa::shape2d;
 fn test_line_aa() {
     let mut canvas = Canvas::new(512, 512);
     canvas.fill((0, 0, 0, 255));
-    let points = vec![(300.0, 0.0), (311.0, 311.0)];
+    let points = vec![(301.25482, 29.72583), (29.72583, 301.25482)];
     let color = (192, 2, 50, 255);
     let line = shape2d::Line::new(points, color, 1);
     line.draw(&mut canvas);
