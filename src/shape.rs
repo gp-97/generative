@@ -242,8 +242,6 @@ pub mod shape2d {
                     }
                 }
             }
-            // self.state.clear();
-            // self.calculate();
         }
     }
 
@@ -529,7 +527,9 @@ pub mod curve {
     use crate::canvas;
     use crate::helpers::comb;
     use crate::helpers::linspace;
+    use crate::transforms;
     use crate::Spline;
+    use crate::Transform;
     pub struct Curve {
         points: Vec<(f32, f32)>,
         color: (u8, u8, u8, u8),
@@ -656,6 +656,33 @@ pub mod curve {
             }
             c
         }
+
+        pub fn transform(&mut self, operation: Transform) {
+            match operation {
+                Transform::TRANSLATE(tx, ty) => {
+                    for point in self.points.iter_mut() {
+                        *point = transforms::translate((*point).0, (*point).1, tx, ty);
+                    }
+                }
+                Transform::ROTATE(x_pivot, y_pivot, angle) => {
+                    for point in self.points.iter_mut() {
+                        *point = transforms::rotate((*point).0, (*point).1, x_pivot, y_pivot, angle);
+                    }
+                }
+                Transform::ShearX(x_ref, y_ref, shx) => {
+                    for point in self.points.iter_mut() {
+                        *point = transforms::shear_x((*point).0, (*point).1, x_ref, y_ref, shx);
+                    }
+                }
+                Transform::ShearY(x_ref, y_ref, shy) => {
+                    for point in self.points.iter_mut() {
+                        *point = transforms::shear_y((*point).0, (*point).1, x_ref, y_ref, shy);
+                    }
+                }
+            }
+            self.state.clear();
+            self.calculate();
+        }
     }
 
     pub struct Bezier {
@@ -682,6 +709,22 @@ pub mod curve {
             bezier
         }
 
+        pub fn get_color(&self) -> (u8, u8, u8, u8) {
+            self.color
+        }
+
+        pub fn get_thickness(&self) -> u8 {
+            self.thickness
+        }
+
+        pub fn set_color(&mut self, color: (u8, u8, u8, u8)) {
+            self.color = color;
+        }
+
+        pub fn set_thickness(&mut self, thickness: u8) {
+            self.thickness = thickness;
+        }
+
         fn blend(&self, i: usize, t: f32) -> f32 {
             let j = comb(self.degree, i) as f32 * t.powf(i as f32) * (1.0 - t).powf((self.degree - i) as f32);
             j
@@ -705,6 +748,35 @@ pub mod curve {
             let drawable = self.state.clone();
             let line = Line::new(drawable, self.color, self.thickness);
             line.draw(canvas);
+        }
+
+        pub fn transform(&mut self, operation: Transform) {
+            match operation {
+                Transform::TRANSLATE(tx, ty) => {
+                    for point in self.control_points.iter_mut() {
+                        *point = transforms::translate((*point).0, (*point).1, tx, ty);
+                    }
+                    self.state.clear();
+                    self.calculate();
+                }
+                Transform::ROTATE(x_pivot, y_pivot, angle) => {
+                    for point in self.control_points.iter_mut() {
+                        *point = transforms::rotate((*point).0, (*point).1, x_pivot, y_pivot, angle);
+                    }
+                    self.state.clear();
+                    self.calculate();
+                }
+                Transform::ShearX(x_ref, y_ref, shx) => {
+                    for point in self.state.iter_mut() {
+                        *point = transforms::shear_x((*point).0, (*point).1, x_ref, y_ref, shx);
+                    }
+                }
+                Transform::ShearY(x_ref, y_ref, shy) => {
+                    for point in self.state.iter_mut() {
+                        *point = transforms::shear_y((*point).0, (*point).1, x_ref, y_ref, shy);
+                    }
+                }
+            }
         }
     }
 }
