@@ -11,14 +11,14 @@ pub mod shape2d {
     }
 
     impl Line {
-        pub fn new(points: Vec<(f32, f32)>, color: (u8, u8, u8, u8), thickness: u8) -> Self {
+        pub fn new(points: Vec<(f32, f32)>, color: (u8, u8, u8, u8), thickness: u8, canvas: &canvas::Canvas) -> Self {
             let mut line = Self {
                 points,
                 color,
                 thickness,
                 state: vec![],
             };
-            line.calculate();
+            line.calculate(canvas);
             line
         }
 
@@ -59,15 +59,21 @@ pub mod shape2d {
             1.0 - self.fpart(x)
         }
 
-        fn build_state(&mut self, x: isize, y: isize, c: f32) {
-            let r = (self.color.0 as f32 * c) as u8;
-            let g = (self.color.1 as f32 * c) as u8;
-            let b = (self.color.2 as f32 * c) as u8;
+        fn build_state(&mut self, x: isize, y: isize, c: f32, canvas: &canvas::Canvas) {
+            let (r_bkg, g_bkg, b_bkg, _a_bkg) = match canvas.get_pixel_at(x as usize, y as usize) {
+                Some((r, g, b, a)) => (r, g, b, a),
+                None => return,
+            };
+
+            let r = (self.color.0 as f32 * c + (1.0 - c) * r_bkg as f32) as u8;
+            let g = (self.color.1 as f32 * c + (1.0 - c) * g_bkg as f32) as u8;
+            let b = (self.color.2 as f32 * c + (1.0 - c) * b_bkg as f32) as u8;
             let a = self.color.3;
+
             self.state.push((x as f32, y as f32, (r, g, b, a)));
         }
 
-        fn calculate(&mut self) {
+        fn calculate(&mut self, canvas: &canvas::Canvas) {
             if !self.points.is_empty() {
                 if self.points.len() == 1 {
                     let x = self.points[0].0;
@@ -130,8 +136,8 @@ pub mod shape2d {
                                 let xpxl1 = xend as isize;
                                 let ypxl1 = self.ipart(yend);
 
-                                self.build_state(xpxl1, ypxl1, self.rfpart(yend) * xgap);
-                                self.build_state(xpxl1, ypxl1 + 1, self.fpart(yend) * xgap);
+                                self.build_state(xpxl1, ypxl1, self.rfpart(yend) * xgap, canvas);
+                                self.build_state(xpxl1, ypxl1 + 1, self.fpart(yend) * xgap, canvas);
 
                                 let mut intery = yend + gradient;
                                 xend = self.round(x2) as f32;
@@ -141,13 +147,13 @@ pub mod shape2d {
                                 let xpxl2 = xend as isize;
                                 let ypxl2 = self.ipart(yend);
 
-                                self.build_state(xpxl2, ypxl2, self.rfpart(yend) * xgap);
-                                self.build_state(xpxl2, ypxl2 + 1, self.fpart(yend) * xgap);
+                                self.build_state(xpxl2, ypxl2, self.rfpart(yend) * xgap, canvas);
+                                self.build_state(xpxl2, ypxl2 + 1, self.fpart(yend) * xgap, canvas);
 
                                 let mut x = xpxl1 + 1;
                                 while x < xpxl2 {
-                                    self.build_state(x, self.ipart(intery), self.rfpart(intery));
-                                    self.build_state(x, self.ipart(intery) + 1, self.fpart(intery));
+                                    self.build_state(x, self.ipart(intery), self.rfpart(intery), canvas);
+                                    self.build_state(x, self.ipart(intery) + 1, self.fpart(intery), canvas);
                                     intery += gradient;
                                     x += 1;
                                 }
@@ -165,8 +171,8 @@ pub mod shape2d {
                                 let ypxl1 = yend as isize;
                                 let xpxl1 = self.ipart(xend);
 
-                                self.build_state(xpxl1, ypxl1, self.rfpart(xend) * ygap);
-                                self.build_state(xpxl1, ypxl1 + 1, self.fpart(xend) * ygap);
+                                self.build_state(xpxl1, ypxl1, self.rfpart(xend) * ygap, canvas);
+                                self.build_state(xpxl1, ypxl1 + 1, self.fpart(xend) * ygap, canvas);
 
                                 let mut interx = xend + gradient;
 
@@ -177,13 +183,13 @@ pub mod shape2d {
                                 let ypxl2 = yend as isize;
                                 let xpxl2 = self.ipart(xend);
 
-                                self.build_state(xpxl2, ypxl2, self.rfpart(xend) * ygap);
-                                self.build_state(xpxl2, ypxl2 + 1, self.fpart(xend) * ygap);
+                                self.build_state(xpxl2, ypxl2, self.rfpart(xend) * ygap, canvas);
+                                self.build_state(xpxl2, ypxl2 + 1, self.fpart(xend) * ygap, canvas);
 
                                 let mut y = ypxl1 + 1;
                                 while y < ypxl2 {
-                                    self.build_state(self.ipart(interx), y, self.rfpart(interx));
-                                    self.build_state(self.ipart(interx) + 1, y, self.fpart(interx));
+                                    self.build_state(self.ipart(interx), y, self.rfpart(interx), canvas);
+                                    self.build_state(self.ipart(interx) + 1, y, self.fpart(interx), canvas);
                                     interx += gradient;
                                     y += 1;
                                 }
@@ -194,7 +200,7 @@ pub mod shape2d {
             }
         }
 
-        pub fn transform(&mut self, operation: Transform) {
+        pub fn transform(&mut self, operation: Transform, canvas: &canvas::Canvas) {
             match operation {
                 Transform::TRANSLATE(tx, ty) => {
                     for point in self.points.iter_mut() {
@@ -218,7 +224,7 @@ pub mod shape2d {
                 }
             }
             self.state.clear();
-            self.calculate();
+            self.calculate(canvas);
         }
     }
     pub struct Rectangle {
@@ -230,7 +236,7 @@ pub mod shape2d {
     }
 
     impl Rectangle {
-        pub fn new(points: [(f32, f32); 2], color: (u8, u8, u8, u8), thickness: u8) -> Self {
+        pub fn new(points: [(f32, f32); 2], color: (u8, u8, u8, u8), thickness: u8, canvas: &canvas::Canvas) -> Self {
             let x1 = points[0].0;
             let y1 = points[0].1;
             let x2 = points[1].0;
@@ -243,7 +249,7 @@ pub mod shape2d {
                 thickness,
                 state: vec![],
             };
-            rect.calculate();
+            rect.calculate(canvas);
             rect
         }
 
@@ -279,32 +285,32 @@ pub mod shape2d {
             }
         }
 
-        fn calculate(&mut self) {
+        fn calculate(&mut self, canvas: &canvas::Canvas) {
             if self.points.len() == 2 {
                 let x1 = self.points[0].0;
                 let y1 = self.points[0].1;
                 let x2 = self.points[1].0;
                 let y2 = self.points[1].1;
 
-                let line = Line::new(vec![(x1, y1), (x1, y2)], self.color, self.thickness);
+                let line = Line::new(vec![(x1, y1), (x1, y2)], self.color, self.thickness, canvas);
                 for point in line.state.iter() {
                     self.state.push(*point);
                 }
-                let line = Line::new(vec![(x1, y2), (x2, y2)], self.color, self.thickness);
+                let line = Line::new(vec![(x1, y2), (x2, y2)], self.color, self.thickness, canvas);
                 for point in line.state.iter() {
                     self.state.push(*point);
                 }
-                let line = Line::new(vec![(x2, y2), (x2, y1)], self.color, self.thickness);
+                let line = Line::new(vec![(x2, y2), (x2, y1)], self.color, self.thickness, canvas);
                 for point in line.state.iter() {
                     self.state.push(*point);
                 }
-                let line = Line::new(vec![(x2, y1), (x1, y1)], self.color, self.thickness);
+                let line = Line::new(vec![(x2, y1), (x1, y1)], self.color, self.thickness, canvas);
                 for point in line.state.iter() {
                     self.state.push(*point);
                 }
             }
         }
-        pub fn transform(&mut self, operation: Transform) {
+        pub fn transform(&mut self, operation: Transform, canvas: &canvas::Canvas) {
             match operation {
                 Transform::TRANSLATE(tx, ty) => {
                     for point in self.state.iter_mut() {
@@ -320,19 +326,19 @@ pub mod shape2d {
                     self.set_vertices(points.clone());
                     self.state.clear();
 
-                    let line = Line::new(vec![points[0], points[1]], self.color, self.thickness);
+                    let line = Line::new(vec![points[0], points[1]], self.color, self.thickness, canvas);
                     for point in line.state.iter() {
                         self.state.push(*point);
                     }
-                    let line = Line::new(vec![points[1], points[2]], self.color, self.thickness);
+                    let line = Line::new(vec![points[1], points[2]], self.color, self.thickness, canvas);
                     for point in line.state.iter() {
                         self.state.push(*point);
                     }
-                    let line = Line::new(vec![points[2], points[3]], self.color, self.thickness);
+                    let line = Line::new(vec![points[2], points[3]], self.color, self.thickness, canvas);
                     for point in line.state.iter() {
                         self.state.push(*point);
                     }
-                    let line = Line::new(vec![points[3], points[0]], self.color, self.thickness);
+                    let line = Line::new(vec![points[3], points[0]], self.color, self.thickness, canvas);
                     for point in line.state.iter() {
                         self.state.push(*point);
                     }
@@ -363,7 +369,13 @@ pub mod shape2d {
     }
 
     impl Square {
-        pub fn new(points: (f32, f32), edge: f32, color: (u8, u8, u8, u8), thickness: u8) -> Self {
+        pub fn new(
+            points: (f32, f32),
+            edge: f32,
+            color: (u8, u8, u8, u8),
+            thickness: u8,
+            canvas: &canvas::Canvas,
+        ) -> Self {
             let x1 = points.0;
             let y1 = points.1;
             let x2 = x1 + edge;
@@ -377,7 +389,7 @@ pub mod shape2d {
                 thickness,
                 state: vec![],
             };
-            square.calculate();
+            square.calculate(canvas);
             square
         }
 
@@ -413,18 +425,18 @@ pub mod shape2d {
             self.vertices.clone()
         }
 
-        fn calculate(&mut self) {
+        fn calculate(&mut self, canvas: &canvas::Canvas) {
             let x1 = self.points.0;
             let y1 = self.points.1;
             let x2 = x1 + self.edge;
             let y2 = y1 + self.edge;
 
-            let rect = Rectangle::new([(x1, y1), (x2, y2)], self.color, self.thickness);
+            let rect = Rectangle::new([(x1, y1), (x2, y2)], self.color, self.thickness, canvas);
             for point in rect.state.iter() {
                 self.state.push(*point);
             }
         }
-        pub fn transform(&mut self, operation: Transform) {
+        pub fn transform(&mut self, operation: Transform, canvas: &canvas::Canvas) {
             match operation {
                 Transform::TRANSLATE(tx, ty) => {
                     for point in self.state.iter_mut() {
@@ -440,19 +452,19 @@ pub mod shape2d {
                     self.set_vertices(points.clone());
                     self.state.clear();
 
-                    let line = Line::new(vec![points[0], points[1]], self.color, self.thickness);
+                    let line = Line::new(vec![points[0], points[1]], self.color, self.thickness, canvas);
                     for point in line.state.iter() {
                         self.state.push(*point);
                     }
-                    let line = Line::new(vec![points[1], points[2]], self.color, self.thickness);
+                    let line = Line::new(vec![points[1], points[2]], self.color, self.thickness, canvas);
                     for point in line.state.iter() {
                         self.state.push(*point);
                     }
-                    let line = Line::new(vec![points[2], points[3]], self.color, self.thickness);
+                    let line = Line::new(vec![points[2], points[3]], self.color, self.thickness, canvas);
                     for point in line.state.iter() {
                         self.state.push(*point);
                     }
-                    let line = Line::new(vec![points[3], points[0]], self.color, self.thickness);
+                    let line = Line::new(vec![points[3], points[0]], self.color, self.thickness, canvas);
                     for point in line.state.iter() {
                         self.state.push(*point);
                     }
@@ -481,14 +493,14 @@ pub mod shape2d {
     }
 
     impl Polygon {
-        pub fn new(points: Vec<(f32, f32)>, color: (u8, u8, u8, u8), thickness: u8) -> Self {
+        pub fn new(points: Vec<(f32, f32)>, color: (u8, u8, u8, u8), thickness: u8, canvas: &canvas::Canvas) -> Self {
             let mut poly = Self {
                 points,
                 color,
                 thickness,
                 state: vec![],
             };
-            poly.calculate();
+            poly.calculate(canvas);
             poly
         }
 
@@ -516,15 +528,15 @@ pub mod shape2d {
             }
         }
 
-        fn calculate(&mut self) {
+        fn calculate(&mut self, canvas: &canvas::Canvas) {
             let p_first = self.points[0];
             self.points.push(p_first);
-            let line = Line::new(self.points.clone(), self.color, self.thickness);
+            let line = Line::new(self.points.clone(), self.color, self.thickness, canvas);
             for point in line.state.iter() {
                 self.state.push(*point);
             }
         }
-        pub fn transform(&mut self, operation: Transform) {
+        pub fn transform(&mut self, operation: Transform, canvas: &canvas::Canvas) {
             match operation {
                 Transform::TRANSLATE(tx, ty) => {
                     for point in self.points.iter_mut() {
@@ -548,7 +560,7 @@ pub mod shape2d {
                 }
             }
             self.state.clear();
-            self.calculate();
+            self.calculate(canvas);
         }
     }
 
@@ -682,7 +694,7 @@ pub mod curve {
         thickness: u8,
         npoints: u32,
         spline: Spline,
-        state: Vec<(f32, f32)>,
+        state: Vec<(f32, f32, (u8, u8, u8, u8))>,
     }
 
     impl Curve {
@@ -693,6 +705,10 @@ pub mod curve {
             npoints: u32,
             spline: Spline,
         ) -> Self {
+            let mut npoints = npoints;
+            if npoints > 10 {
+                npoints = 10;
+            }
             let mut curve = Self {
                 points,
                 color,
@@ -740,7 +756,11 @@ pub mod curve {
 
         pub fn draw(&self, canvas: &mut canvas::Canvas) {
             let drawable = self.state.clone();
-            let line = Line::new(drawable, self.color, self.thickness);
+            let mut points = vec![];
+            for point in drawable.iter() {
+                points.push(((*point).0, (*point).1));
+            }
+            let line = Line::new(points, self.get_color(), self.thickness, canvas);
             line.draw(canvas);
         }
         fn knot_j(&self, knot_i: f32, pi: (f32, f32), pj: (f32, f32), alpha: f32) -> f32 {
@@ -754,7 +774,7 @@ pub mod curve {
             p1: (f32, f32),
             p2: (f32, f32),
             p3: (f32, f32),
-        ) -> Vec<(f32, f32)> {
+        ) -> Vec<(f32, f32, (u8, u8, u8, u8))> {
             let mut alpha = match self.spline {
                 Spline::UNIFORM => 0.0,
                 Spline::CENTRIPETAL => 0.5,
@@ -797,8 +817,8 @@ pub mod curve {
                 let cc0 = ca20;
                 let cc1 = ca21;
 
-                let val = (cc0 * b1.0 + cc1 * b2.0, cc0 * b1.1 + cc1 * b2.1);
-                c.push(val);
+                let (x, y) = (cc0 * b1.0 + cc1 * b2.0, cc0 * b1.1 + cc1 * b2.1);
+                c.push((x, y, self.color));
             }
             c
         }
@@ -892,7 +912,7 @@ pub mod curve {
 
         pub fn draw(&self, canvas: &mut canvas::Canvas) {
             let drawable = self.state.clone();
-            let line = Line::new(drawable, self.color, self.thickness);
+            let line = Line::new(drawable, self.color, self.thickness, canvas);
             line.draw(canvas);
         }
 
