@@ -28,7 +28,7 @@ Currently it is in nascent stage and is somewhat unstable.
 |![Original](examples/inputs/animal.jpg)|![Generated](examples/outputs/animal_wave.png)|
 
 ## Current features:
-- [ ] 2D Shape + Transformations (Translation, Rotation, Shearing in X and Y)
+- [ ] 2D Shape + Transformations (Translation, Rotation, Shearing in X and Y) + Anti-Aliasing
   - [x] Lines
   - [x] Line from multiple points
   - [x] Squares
@@ -36,7 +36,7 @@ Currently it is in nascent stage and is somewhat unstable.
   - [x] Polygons
   - [x] Circles
   - [ ] Ellipse
-- [x] Curves + Transformations (Translation, Rotation, Shearing in X and Y)
+- [x] Curves + Transformations (Translation, Rotation, Shearing in X and Y) + Anti-Aliasing
   - [x] Catmull-Rom Spline (Uniform + Centripetal + Chordal)
   - [x] n-degree Bezier curve
 ## TODO:
