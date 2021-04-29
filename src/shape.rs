@@ -558,6 +558,10 @@ pub mod curve {
             curve
         }
 
+        pub fn get_state(&self) -> Vec<(f32, f32)> {
+            self.state.clone()
+        }
+
         /// https://en.wikipedia.org/wiki/Centripetal_Catmull%E2%80%93Rom_spline
         pub fn calculate(&mut self) {
             let size = self.points.len();
@@ -583,7 +587,7 @@ pub mod curve {
         fn knot_j(&self, knot_i: f32, pi: (f32, f32), pj: (f32, f32), alpha: f32) -> f32 {
             let (xi, yi) = pi;
             let (xj, yj) = pj;
-            ((xj - xi) * (xj - xi) + (yj - yi) * (yj - yi)).powf(alpha) + knot_i
+            ((xj - xi).powf(2.0) + (yj - yi).powf(2.0)).powf(alpha) + knot_i
         }
         fn catmull_rom_spline(
             &self,
