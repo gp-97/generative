@@ -18,5 +18,4 @@ fn main() {
     let curve = Curve::new(points, (255, 102, 0, 255), 1, 1000, spline);
     curve.draw(&mut canvas);
     canvas.save_as_image("examples/outputs/curve_init.png");
-    println!("{:?}", curve.get_state());
 }

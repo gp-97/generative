@@ -527,6 +527,7 @@ pub mod shape2d {
 pub mod curve {
     use super::shape2d::Line;
     use crate::canvas;
+    use crate::helpers::comb;
     use crate::helpers::linspace;
     use crate::Spline;
     pub struct Curve {
@@ -558,8 +559,20 @@ pub mod curve {
             curve
         }
 
-        pub fn get_state(&self) -> Vec<(f32, f32)> {
-            self.state.clone()
+        pub fn get_color(&self) -> (u8, u8, u8, u8) {
+            self.color
+        }
+
+        pub fn get_thickness(&self) -> u8 {
+            self.thickness
+        }
+
+        pub fn set_color(&mut self, color: (u8, u8, u8, u8)) {
+            self.color = color;
+        }
+
+        pub fn set_thickness(&mut self, thickness: u8) {
+            self.thickness = thickness;
         }
 
         /// https://en.wikipedia.org/wiki/Centripetal_Catmull%E2%80%93Rom_spline
@@ -642,6 +655,56 @@ pub mod curve {
                 c.push(val);
             }
             c
+        }
+    }
+
+    pub struct Bezier {
+        npoints: u32,
+        control_points: Vec<(f32, f32)>,
+        degree: usize,
+        color: (u8, u8, u8, u8),
+        thickness: u8,
+        state: Vec<(f32, f32)>,
+    }
+
+    impl Bezier {
+        pub fn new(npoints: u32, control_points: Vec<(f32, f32)>, color: (u8, u8, u8, u8), thickness: u8) -> Self {
+            let degree = control_points.len() - 1;
+            let mut bezier = Self {
+                npoints,
+                control_points,
+                degree,
+                color,
+                thickness,
+                state: vec![],
+            };
+            bezier.calculate();
+            bezier
+        }
+
+        fn blend(&self, i: usize, t: f32) -> f32 {
+            let j = comb(self.degree, i) as f32 * t.powf(i as f32) * (1.0 - t).powf((self.degree - i) as f32);
+            j
+        }
+
+        pub fn calculate(&mut self) {
+            let t_lin = linspace(0.0, 1.0, self.npoints);
+            for t in t_lin.iter() {
+                let mut p = (0.0, 0.0);
+                for (i, point) in self.control_points.iter().enumerate() {
+                    let (x, y) = *point;
+                    let j = self.blend(i, *t);
+                    p.0 += x * j;
+                    p.1 += y * j;
+                }
+                self.state.push(p);
+            }
+        }
+
+        pub fn draw(&self, canvas: &mut canvas::Canvas) {
+            let drawable = self.state.clone();
+            let line = Line::new(drawable, self.color, self.thickness);
+            line.draw(canvas);
         }
     }
 }

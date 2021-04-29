@@ -8,3 +8,15 @@ pub fn linspace(start: f32, end: f32, npoints: u32) -> Vec<f32> {
     points.push(end);
     points
 }
+
+fn factorial(n: usize) -> usize {
+    let mut fact = 1_usize;
+    for i in 1..=n {
+        fact *= i as usize;
+    }
+    fact
+}
+
+pub fn comb(n: usize, r: usize) -> usize {
+    factorial(n) / (factorial(n - r) * factorial(r))
+}
