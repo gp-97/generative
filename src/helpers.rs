@@ -44,3 +44,7 @@ pub fn lerp(start: f32, end: f32, amt: f32) -> f32 {
 pub fn norm(val: f32, start: f32, end: f32) -> f32 {
     map(val, start, end, 0.0, 1.0, false)
 }
+
+pub fn euclid_dist(p1: (f32, f32), p2: (f32, f32)) -> f32 {
+    ((p1.0 - p2.0).powf(2.0) + (p1.1 - p2.1).powf(2.0)).powf(0.5)
+}

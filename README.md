@@ -19,13 +19,20 @@
 **Generative** (__WIP__) is 2D generational arts creation library written in Rust.
 Currently it is in nascent stage and is somewhat unstable.
 
-## Example Output: 
+## Example Outputs
+<details>
+<summary>Outputs</summary>
+
 #### Perlin Loop
 ![Perlin Loop](examples/outputs/perlin_loop.png)
+#### Mandelbrot
+![Mandelbrot](examples/outputs/mandelbrot.png)|
 #### Generating sinusoidal wave image
 |Original|Wave Image|
 |:------:|:--------:|
 |![Original](examples/inputs/animal.jpg)|![Generated](examples/outputs/animal_wave.png)|
+
+</details>
 
 ## Current features:
 - [ ] 2D Shape + Transformations (Translation, Rotation, Shearing in X and Y) + Anti-Aliasing
