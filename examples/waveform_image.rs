@@ -1,13 +1,17 @@
-use generative::canvas::Canvas;
-use generative::shape::shape2d::Line;
+use generative::{canvas::Canvas, shape::shape2d::Line};
 
+fn path(relative: &str) -> String {
+    let mut path = project_root::get_project_root().unwrap();
+    path.push(relative);
+    path.to_str().unwrap().to_owned()
+}
 fn setup() -> Canvas {
-    let mut canvas = Canvas::image_as_canvas("examples/inputs/animal.jpg");
+    let mut canvas = Canvas::image_as_canvas(&path("examples/inputs/animal.jpg"));
     canvas.fill((255, 255, 255, 255));
     canvas
 }
 fn display(canvas: &mut Canvas, amplitude: f32) {
-    let img = Canvas::image_as_canvas("examples/inputs/animal.jpg");
+    let img = Canvas::image_as_canvas(&path("examples/inputs/animal.jpg"));
     let width = canvas.get_width();
     let height = canvas.get_height();
     let mut y = 0_f32;
@@ -66,5 +70,5 @@ fn main() {
     let mut ctx = setup();
     let amplitude = 5.0;
     display(&mut ctx, amplitude);
-    ctx.save_as_image("examples/outputs/animal_wave.png");
+    ctx.save_as_image(&path("examples/outputs/animal_wave.png"));
 }

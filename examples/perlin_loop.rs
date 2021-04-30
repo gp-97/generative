@@ -1,7 +1,11 @@
-use generative::canvas::Canvas;
-use generative::shape::shape2d::Polygon;
-use generative::Transform;
+use generative::{canvas::Canvas, shape::shape2d::Polygon, Transform};
 use perlin2d::PerlinNoise2D;
+
+fn path(relative: &str) -> String {
+    let mut path = project_root::get_project_root().unwrap();
+    path.push(relative);
+    path.to_str().unwrap().to_owned()
+}
 
 fn setup() -> Canvas {
     let mut canvas = Canvas::new(3840 * 2, 2160 * 2);
@@ -43,5 +47,5 @@ fn display(canvas: &mut Canvas) {
 fn main() {
     let mut ctx = setup();
     display(&mut ctx);
-    ctx.save_as_image("examples/outputs/perlin_loop.png");
+    ctx.save_as_image(&path("examples/outputs/perlin_loop.png"));
 }
