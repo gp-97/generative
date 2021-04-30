@@ -26,7 +26,7 @@ Currently it is in nascent stage and is somewhat unstable.
 #### Perlin Loop
 ![Perlin Loop](examples/outputs/perlin_loop.png)
 #### Mandelbrot
-![Mandelbrot](examples/outputs/mandelbrot.png)|
+![Mandelbrot](examples/outputs/mandelbrot.png)
 #### Generating sinusoidal wave image
 |Original|Wave Image|
 |:------:|:--------:|
