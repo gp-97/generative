@@ -42,7 +42,7 @@ pub mod shape2d {
             for pixel in self.state.iter() {
                 let point = pixel.get_point();
                 let color = pixel.get_color();
-                
+
                 let x = point.get_x();
                 let y = point.get_y();
                 if x >= 0.0 && y >= 0.0 {
@@ -298,7 +298,7 @@ pub mod shape2d {
             for pixel in self.state.iter() {
                 let point = pixel.get_point();
                 let color = pixel.get_color();
-                
+
                 let x = point.get_x();
                 let y = point.get_y();
                 if x >= 0.0 && y >= 0.0 {
