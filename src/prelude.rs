@@ -8,5 +8,5 @@ pub use crate::shape_aa::shape2d::{
     Circle as Circle_aa, Line as Line_aa, Polygon as Polygon_aa, Rectangle as Rectangle_aa, Square as Square_aa,
 };
 pub use crate::transforms::*;
-pub use crate::{Angle, Spline, Transform};
+pub use crate::{Angle, Pixel, Point, Spline, Transform};
 pub use perlin2d::PerlinNoise2D;

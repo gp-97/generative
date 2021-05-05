@@ -14,9 +14,9 @@ pub enum Angle {
 #[derive(Copy, Clone)]
 pub enum Transform {
     TRANSLATE(f32, f32),
-    ROTATE(f32, f32, Angle),
-    ShearX(f32, f32, f32),
-    ShearY(f32, f32, f32),
+    ROTATE(Point, Angle),
+    ShearX(Point, f32),
+    ShearY(Point, f32),
 }
 
 #[derive(Copy, Clone)]
@@ -73,7 +73,7 @@ impl From<Vec<f32>> for Point {
     }
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub struct Pixel {
     point: Point,
     color: (u8, u8, u8, u8),

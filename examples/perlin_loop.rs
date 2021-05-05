@@ -10,8 +10,8 @@ fn display(canvas: &mut Canvas) {
     let mut zoff = 0.1;
     let mut tx = 1_f32;
     let mut ty = 1_f32;
+    let noise = PerlinNoise2D::new(4, 3.0, 0.5, 0.75, 10.0, (100.0, 100.0), 0.5, 101);
     while zoff < 10.0 {
-        let noise = PerlinNoise2D::new(4, 3.0, 0.5, 0.75, 10.0, (100.0, 100.0), 0.5, 101);
         let mut points = vec![];
         let mut theta: f64 = 0.0;
         while theta < (std::f64::consts::PI * 2.0) {
@@ -28,7 +28,8 @@ fn display(canvas: &mut Canvas) {
         tx += 0.001;
         ty += 0.001;
         zoff += 0.01;
-        let mut poly = Polygon::new(points, color, 1);
+        let points_interim = points.iter().map(|point| Point::from(*point)).collect();
+        let mut poly = Polygon::new(points_interim, color, 1);
         poly.transform(Transform::TRANSLATE(
             canvas.get_height() as f32 / 2.0,
             canvas.get_width() as f32 / 2.0,

@@ -25,7 +25,7 @@ fn display(canvas: &mut Canvas, amplitude: f32) {
                 (width as f32 - height as f32).abs(),
             ) as usize;
             let color = match img.get_pixel_at(row, col) {
-                Some((r, g, b, a)) => (r, g, b, a),
+                Some(pixel) => pixel.get_color(),
                 None => continue,
             };
             l += (255.0 - color.0 as f32) / (255.0);
@@ -44,7 +44,8 @@ fn display(canvas: &mut Canvas, amplitude: f32) {
             points.push((row as f32, col as f32));
             x += 1.0;
         }
-        let line = Line::new(points, (0, 0, 0, 255), 1);
+        let points = points.iter().map(|point| Point::from(*point)).collect();
+        let mut line = Line::new(points, (0, 0, 0, 255), 1);
         line.draw(canvas);
         y += 1.0;
     }
