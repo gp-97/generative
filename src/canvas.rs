@@ -1,6 +1,8 @@
 use photon_rs::native::{open_image, save_image};
 use photon_rs::PhotonImage;
 
+use std::num::Wrapping;
+
 pub struct Canvas {
     width: u32,
     height: u32,
@@ -65,7 +67,11 @@ impl Canvas {
     }
 
     fn index_at(&self, row: usize, column: usize) -> usize {
-        row * self.width as usize * 4 + column as usize * 4
+        Wrapping(
+            Wrapping(row) * Wrapping(self.width as usize * 4) + Wrapping(Wrapping(column as usize) * Wrapping(4)).0,
+        )
+        .0
+         .0
     }
 
     pub fn save_as_image(&self, image_path: &str) {
