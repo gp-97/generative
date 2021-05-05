@@ -1,17 +1,16 @@
 pub mod shape2d {
-    use crate::canvas;
-    use crate::transforms;
-    use crate::Transform;
+    use crate::{canvas, transforms};
+    use crate::{Pixel, Point, Transform};
     use std::mem::swap;
     pub struct Line {
-        points: Vec<(f32, f32)>,
+        points: Vec<Point>,
         color: (u8, u8, u8, u8),
         thickness: u8,
-        state: Vec<(f32, f32, (u8, u8, u8, u8))>,
+        state: Vec<Pixel>,
     }
 
     impl Line {
-        pub fn new(points: Vec<(f32, f32)>, color: (u8, u8, u8, u8), thickness: u8, canvas: &canvas::Canvas) -> Self {
+        pub fn new(points: Vec<Point>, color: (u8, u8, u8, u8), thickness: u8, canvas: &canvas::Canvas) -> Self {
             let mut line = Self {
                 points,
                 color,
@@ -38,10 +37,16 @@ pub mod shape2d {
             self.thickness = thickness;
         }
 
-        pub fn draw(&self, canvas: &mut canvas::Canvas) {
-            for point in self.state.iter() {
-                if (*point).0 >= 0.0 && (*point).1 >= 0.0 {
-                    canvas.set_pixel_at((*point).0 as usize, (*point).1 as usize, (*point).2);
+        pub fn draw(&mut self, canvas: &mut canvas::Canvas) {
+            self.calculate(canvas);
+            for pixel in self.state.iter() {
+                let point = pixel.get_point();
+                let color = pixel.get_color();
+                
+                let x = point.get_x();
+                let y = point.get_y();
+                if x >= 0.0 && y >= 0.0 {
+                    canvas.set_pixel_at(x as usize, y as usize, color);
                 }
             }
         }
@@ -61,7 +66,7 @@ pub mod shape2d {
 
         fn build_state(&mut self, x: isize, y: isize, c: f32, canvas: &canvas::Canvas) {
             let (r_bkg, g_bkg, b_bkg, _a_bkg) = match canvas.get_pixel_at(x as usize, y as usize) {
-                Some((r, g, b, a)) => (r, g, b, a),
+                Some(pixel) => pixel.get_color(),
                 None => return,
             };
 
@@ -70,21 +75,23 @@ pub mod shape2d {
             let b = (self.color.2 as f32 * c + (1.0 - c) * b_bkg as f32) as u8;
             let a = self.color.3;
 
-            self.state.push((x as f32, y as f32, (r, g, b, a)));
+            let point = Point::new(x as f32, y as f32);
+            let color = (r, g, b, a);
+            let pixel = Pixel::new(point, color);
+            self.state.push(pixel);
         }
 
         fn calculate(&mut self, canvas: &canvas::Canvas) {
             if !self.points.is_empty() {
                 if self.points.len() == 1 {
-                    let x = self.points[0].0;
-                    let y = self.points[0].1;
-                    self.state.push((x, y, self.color));
+                    self.state.push(Pixel::new(self.points[0].clone(), self.color));
                 } else {
                     for i in 0..(self.points.len() - 1) {
-                        let x1 = self.points[i].0;
-                        let y1 = self.points[i].1;
-                        let x2 = self.points[i + 1].0;
-                        let y2 = self.points[i + 1].1;
+                        let x1 = self.points[i].get_x();
+                        let y1 = self.points[i].get_y();
+
+                        let x2 = self.points[i + 1].get_x();
+                        let y2 = self.points[i + 1].get_y();
 
                         if x1 == x2 {
                             let x1 = x1 as isize;
@@ -96,7 +103,9 @@ pub mod shape2d {
                                 y_end = y1 as isize;
                             }
                             while y_start <= y_end {
-                                self.state.push((x1 as f32, y_start as f32, self.color));
+                                let point = Point::new(x1 as f32, y_start as f32);
+                                let pixel = Pixel::new(point, self.color);
+                                self.state.push(pixel);
                                 y_start += 1;
                             }
                         } else if y1 == y2 {
@@ -110,7 +119,9 @@ pub mod shape2d {
                                 x_end = x1;
                             }
                             while x_start <= x_end {
-                                self.state.push((x_start as f32, y1 as f32, self.color));
+                                let point = Point::new(x_start as f32, y1 as f32);
+                                let pixel = Pixel::new(point, self.color);
+                                self.state.push(pixel);
                                 x_start += 1;
                             }
                         } else {
@@ -204,22 +215,22 @@ pub mod shape2d {
             match operation {
                 Transform::TRANSLATE(tx, ty) => {
                     for point in self.points.iter_mut() {
-                        *point = transforms::translate((*point).0, (*point).1, tx, ty);
+                        *point = transforms::translate(point, tx, ty);
                     }
                 }
-                Transform::ROTATE(x_pivot, y_pivot, angle) => {
+                Transform::ROTATE(point_pivot, angle) => {
                     for point in self.points.iter_mut() {
-                        *point = transforms::rotate((*point).0, (*point).1, x_pivot, y_pivot, angle);
+                        *point = transforms::rotate(point, &point_pivot, angle);
                     }
                 }
-                Transform::ShearX(x_ref, y_ref, shx) => {
+                Transform::ShearX(point_ref, shx) => {
                     for point in self.points.iter_mut() {
-                        *point = transforms::shear_x((*point).0, (*point).1, x_ref, y_ref, shx);
+                        *point = transforms::shear_x(point, &point_ref, shx);
                     }
                 }
-                Transform::ShearY(x_ref, y_ref, shy) => {
+                Transform::ShearY(point_ref, shy) => {
                     for point in self.points.iter_mut() {
-                        *point = transforms::shear_y((*point).0, (*point).1, x_ref, y_ref, shy);
+                        *point = transforms::shear_y(point, &point_ref, shy);
                     }
                 }
             }
@@ -228,20 +239,25 @@ pub mod shape2d {
         }
     }
     pub struct Rectangle {
-        points: [(f32, f32); 2],
-        vertices: Vec<(f32, f32)>,
+        points: [Point; 2],
+        vertices: Vec<Point>,
         color: (u8, u8, u8, u8),
         thickness: u8,
-        state: Vec<(f32, f32, (u8, u8, u8, u8))>,
+        state: Vec<Pixel>,
     }
 
     impl Rectangle {
-        pub fn new(points: [(f32, f32); 2], color: (u8, u8, u8, u8), thickness: u8, canvas: &canvas::Canvas) -> Self {
-            let x1 = points[0].0;
-            let y1 = points[0].1;
-            let x2 = points[1].0;
-            let y2 = points[1].1;
-            let vertices = vec![(x1, y1), (x1, y2), (x2, y2), (x2, y1)];
+        pub fn new(points: [Point; 2], color: (u8, u8, u8, u8), thickness: u8, canvas: &canvas::Canvas) -> Self {
+            let x1 = points[0].get_x();
+            let y1 = points[0].get_y();
+            let x2 = points[1].get_x();
+            let y2 = points[1].get_y();
+            let vertices = vec![
+                Point::new(x1, y1),
+                Point::new(x1, y2),
+                Point::new(x2, y2),
+                Point::new(x2, y1),
+            ];
             let mut rect = Self {
                 points,
                 vertices,
@@ -269,90 +285,96 @@ pub mod shape2d {
             self.thickness = thickness;
         }
 
-        fn get_vertices(&self) -> Vec<(f32, f32)> {
+        fn get_vertices(&self) -> Vec<Point> {
             self.vertices.clone()
         }
 
-        fn set_vertices(&mut self, vertices: Vec<(f32, f32)>) {
+        fn set_vertices(&mut self, vertices: Vec<Point>) {
             self.vertices = vertices;
         }
 
-        pub fn draw(&self, canvas: &mut canvas::Canvas) {
-            for point in self.state.iter() {
-                if (*point).0 >= 0.0 && (*point).1 >= 0.0 {
-                    canvas.set_pixel_at((*point).0 as usize, (*point).1 as usize, (*point).2);
+        pub fn draw(&mut self, canvas: &mut canvas::Canvas) {
+            self.calculate(canvas);
+            for pixel in self.state.iter() {
+                let point = pixel.get_point();
+                let color = pixel.get_color();
+                
+                let x = point.get_x();
+                let y = point.get_y();
+                if x >= 0.0 && y >= 0.0 {
+                    canvas.set_pixel_at(x as usize, y as usize, color);
                 }
             }
         }
 
         fn calculate(&mut self, canvas: &canvas::Canvas) {
             if self.points.len() == 2 {
-                let x1 = self.points[0].0;
-                let y1 = self.points[0].1;
-                let x2 = self.points[1].0;
-                let y2 = self.points[1].1;
+                let p1 = self.points[0]; // (x1, y1)
+                let p2 = self.points[1]; // (x2, y2)
+                let p3 = Point::new(p1.get_x(), p2.get_y()); //(x1, y2)
+                let p4 = Point::new(p2.get_x(), p1.get_y()); //(x2, y1)
 
-                let line = Line::new(vec![(x1, y1), (x1, y2)], self.color, self.thickness, canvas);
-                for point in line.state.iter() {
-                    self.state.push(*point);
+                let line = Line::new(vec![p1, p3], self.color, self.thickness, canvas);
+                for pixel in line.state.iter() {
+                    self.state.push(*pixel);
                 }
-                let line = Line::new(vec![(x1, y2), (x2, y2)], self.color, self.thickness, canvas);
-                for point in line.state.iter() {
-                    self.state.push(*point);
+                let line = Line::new(vec![p3, p2], self.color, self.thickness, canvas);
+                for pixel in line.state.iter() {
+                    self.state.push(*pixel);
                 }
-                let line = Line::new(vec![(x2, y2), (x2, y1)], self.color, self.thickness, canvas);
-                for point in line.state.iter() {
-                    self.state.push(*point);
+                let line = Line::new(vec![p2, p4], self.color, self.thickness, canvas);
+                for pixel in line.state.iter() {
+                    self.state.push(*pixel);
                 }
-                let line = Line::new(vec![(x2, y1), (x1, y1)], self.color, self.thickness, canvas);
-                for point in line.state.iter() {
-                    self.state.push(*point);
+                let line = Line::new(vec![p4, p1], self.color, self.thickness, canvas);
+                for pixel in line.state.iter() {
+                    self.state.push(*pixel);
                 }
             }
         }
         pub fn transform(&mut self, operation: Transform, canvas: &canvas::Canvas) {
             match operation {
                 Transform::TRANSLATE(tx, ty) => {
-                    for point in self.state.iter_mut() {
-                        let (x, y) = transforms::translate((*point).0, (*point).1, tx, ty);
-                        *point = (x, y, (*point).2);
+                    for pixel in self.state.iter_mut() {
+                        let point = transforms::translate(&pixel.get_point(), tx, ty);
+                        *pixel = Pixel::new(point, pixel.get_color());
                     }
                 }
-                Transform::ROTATE(x_pivot, y_pivot, angle) => {
+                Transform::ROTATE(point_pivot, angle) => {
                     let mut points = self.get_vertices();
                     for point in points.iter_mut() {
-                        *point = transforms::rotate((*point).0, (*point).1, x_pivot, y_pivot, angle);
+                        *point = transforms::rotate(point, &point_pivot, angle);
                     }
                     self.set_vertices(points.clone());
                     self.state.clear();
 
                     let line = Line::new(vec![points[0], points[1]], self.color, self.thickness, canvas);
-                    for point in line.state.iter() {
-                        self.state.push(*point);
+                    for pixel in line.state.iter() {
+                        self.state.push(*pixel);
                     }
                     let line = Line::new(vec![points[1], points[2]], self.color, self.thickness, canvas);
-                    for point in line.state.iter() {
-                        self.state.push(*point);
+                    for pixel in line.state.iter() {
+                        self.state.push(*pixel);
                     }
                     let line = Line::new(vec![points[2], points[3]], self.color, self.thickness, canvas);
-                    for point in line.state.iter() {
-                        self.state.push(*point);
+                    for pixel in line.state.iter() {
+                        self.state.push(*pixel);
                     }
                     let line = Line::new(vec![points[3], points[0]], self.color, self.thickness, canvas);
-                    for point in line.state.iter() {
-                        self.state.push(*point);
+                    for pixel in line.state.iter() {
+                        self.state.push(*pixel);
                     }
                 }
-                Transform::ShearX(x_ref, y_ref, shx) => {
-                    for point in self.state.iter_mut() {
-                        let (x, y) = transforms::shear_x((*point).0, (*point).1, x_ref, y_ref, shx);
-                        *point = (x, y, (*point).2);
+                Transform::ShearX(point_ref, shx) => {
+                    for pixel in self.state.iter_mut() {
+                        let point = transforms::shear_x(&pixel.get_point(), &point_ref, shx);
+                        *pixel = Pixel::new(point, pixel.get_color());
                     }
                 }
-                Transform::ShearY(x_ref, y_ref, shy) => {
-                    for point in self.state.iter_mut() {
-                        let (x, y) = transforms::shear_y((*point).0, (*point).1, x_ref, y_ref, shy);
-                        *point = (x, y, (*point).2);
+                Transform::ShearY(point_ref, shy) => {
+                    for pixel in self.state.iter_mut() {
+                        let point = transforms::shear_y(&pixel.get_point(), &point_ref, shy);
+                        *pixel = Pixel::new(point, pixel.get_color());
                     }
                 }
             }
@@ -360,27 +382,26 @@ pub mod shape2d {
     }
 
     pub struct Square {
-        points: (f32, f32),
+        points: Point,
         edge: f32,
-        vertices: Vec<(f32, f32)>,
+        vertices: Vec<Point>,
         color: (u8, u8, u8, u8),
         thickness: u8,
-        state: Vec<(f32, f32, (u8, u8, u8, u8))>,
+        state: Vec<Pixel>,
     }
 
     impl Square {
-        pub fn new(
-            points: (f32, f32),
-            edge: f32,
-            color: (u8, u8, u8, u8),
-            thickness: u8,
-            canvas: &canvas::Canvas,
-        ) -> Self {
-            let x1 = points.0;
-            let y1 = points.1;
+        pub fn new(points: Point, edge: f32, color: (u8, u8, u8, u8), thickness: u8, canvas: &canvas::Canvas) -> Self {
+            let x1 = points.get_x();
+            let y1 = points.get_y();
             let x2 = x1 + edge;
             let y2 = y1 + edge;
-            let vertices = vec![(x1, y1), (x1, y2), (x2, y2), (x2, y1)];
+            let vertices = vec![
+                Point::new(x1, y1),
+                Point::new(x1, y2),
+                Point::new(x2, y2),
+                Point::new(x2, y1),
+            ];
             let mut square = Self {
                 points,
                 edge,
@@ -393,10 +414,15 @@ pub mod shape2d {
             square
         }
 
-        pub fn draw(&self, canvas: &mut canvas::Canvas) {
-            for point in self.state.iter() {
-                if (*point).0 >= 0.0 && (*point).1 >= 0.0 {
-                    canvas.set_pixel_at((*point).0 as usize, (*point).1 as usize, (*point).2);
+        pub fn draw(&mut self, canvas: &mut canvas::Canvas) {
+            self.calculate(canvas);
+            for pixel in self.state.iter() {
+                let point = pixel.get_point();
+                let color = pixel.get_color();
+                let x = point.get_x();
+                let y = point.get_y();
+                if x >= 0.0 && y >= 0.0 {
+                    canvas.set_pixel_at(x as usize, y as usize, color);
                 }
             }
         }
@@ -417,68 +443,73 @@ pub mod shape2d {
             self.thickness = thickness;
         }
 
-        fn set_vertices(&mut self, vertices: Vec<(f32, f32)>) {
+        fn set_vertices(&mut self, vertices: Vec<Point>) {
             self.vertices = vertices;
         }
 
-        fn get_vertices(&self) -> Vec<(f32, f32)> {
+        fn get_vertices(&self) -> Vec<Point> {
             self.vertices.clone()
         }
 
         fn calculate(&mut self, canvas: &canvas::Canvas) {
-            let x1 = self.points.0;
-            let y1 = self.points.1;
+            let x1 = self.points.get_x();
+            let y1 = self.points.get_y();
             let x2 = x1 + self.edge;
             let y2 = y1 + self.edge;
 
-            let rect = Rectangle::new([(x1, y1), (x2, y2)], self.color, self.thickness, canvas);
-            for point in rect.state.iter() {
-                self.state.push(*point);
+            let rect = Rectangle::new(
+                [Point::new(x1, y1), Point::new(x2, y2)],
+                self.color,
+                self.thickness,
+                canvas,
+            );
+            for pixel in rect.state.iter() {
+                self.state.push(*pixel);
             }
         }
         pub fn transform(&mut self, operation: Transform, canvas: &canvas::Canvas) {
             match operation {
                 Transform::TRANSLATE(tx, ty) => {
-                    for point in self.state.iter_mut() {
-                        let (x, y) = transforms::translate((*point).0, (*point).1, tx, ty);
-                        *point = (x, y, (*point).2);
+                    for pixel in self.state.iter_mut() {
+                        let point = transforms::translate(&pixel.get_point(), tx, ty);
+                        *pixel = Pixel::new(point, pixel.get_color());
                     }
                 }
-                Transform::ROTATE(x_pivot, y_pivot, angle) => {
+                Transform::ROTATE(point_pivot, angle) => {
                     let mut points = self.get_vertices();
                     for point in points.iter_mut() {
-                        *point = transforms::rotate((*point).0, (*point).1, x_pivot, y_pivot, angle);
+                        *point = transforms::rotate(point, &point_pivot, angle);
                     }
                     self.set_vertices(points.clone());
                     self.state.clear();
 
                     let line = Line::new(vec![points[0], points[1]], self.color, self.thickness, canvas);
-                    for point in line.state.iter() {
-                        self.state.push(*point);
+                    for pixel in line.state.iter() {
+                        self.state.push(*pixel);
                     }
                     let line = Line::new(vec![points[1], points[2]], self.color, self.thickness, canvas);
-                    for point in line.state.iter() {
-                        self.state.push(*point);
+                    for pixel in line.state.iter() {
+                        self.state.push(*pixel);
                     }
                     let line = Line::new(vec![points[2], points[3]], self.color, self.thickness, canvas);
-                    for point in line.state.iter() {
-                        self.state.push(*point);
+                    for pixel in line.state.iter() {
+                        self.state.push(*pixel);
                     }
                     let line = Line::new(vec![points[3], points[0]], self.color, self.thickness, canvas);
-                    for point in line.state.iter() {
-                        self.state.push(*point);
+                    for pixel in line.state.iter() {
+                        self.state.push(*pixel);
                     }
                 }
-                Transform::ShearX(x_ref, y_ref, shx) => {
-                    for point in self.state.iter_mut() {
-                        let (x, y) = transforms::shear_x((*point).0, (*point).1, x_ref, y_ref, shx);
-                        *point = (x, y, (*point).2);
+                Transform::ShearX(point_ref, shx) => {
+                    for pixel in self.state.iter_mut() {
+                        let point = transforms::shear_x(&pixel.get_point(), &point_ref, shx);
+                        *pixel = Pixel::new(point, pixel.get_color());
                     }
                 }
-                Transform::ShearY(x_ref, y_ref, shy) => {
-                    for point in self.state.iter_mut() {
-                        let (x, y) = transforms::shear_y((*point).0, (*point).1, x_ref, y_ref, shy);
-                        *point = (x, y, (*point).2);
+                Transform::ShearY(point_ref, shy) => {
+                    for pixel in self.state.iter_mut() {
+                        let point = transforms::shear_y(&pixel.get_point(), &point_ref, shy);
+                        *pixel = Pixel::new(point, pixel.get_color());
                     }
                 }
             }
@@ -486,14 +517,14 @@ pub mod shape2d {
     }
 
     pub struct Polygon {
-        points: Vec<(f32, f32)>,
+        points: Vec<Point>,
         color: (u8, u8, u8, u8),
         thickness: u8,
-        state: Vec<(f32, f32, (u8, u8, u8, u8))>,
+        state: Vec<Pixel>,
     }
 
     impl Polygon {
-        pub fn new(points: Vec<(f32, f32)>, color: (u8, u8, u8, u8), thickness: u8, canvas: &canvas::Canvas) -> Self {
+        pub fn new(points: Vec<Point>, color: (u8, u8, u8, u8), thickness: u8, canvas: &canvas::Canvas) -> Self {
             let mut poly = Self {
                 points,
                 color,
@@ -520,10 +551,15 @@ pub mod shape2d {
             self.thickness = thickness;
         }
 
-        pub fn draw(&self, canvas: &mut canvas::Canvas) {
-            for point in self.state.iter() {
-                if (*point).0 >= 0.0 && (*point).1 >= 0.0 {
-                    canvas.set_pixel_at((*point).0 as usize, (*point).1 as usize, (*point).2);
+        pub fn draw(&mut self, canvas: &mut canvas::Canvas) {
+            self.calculate(canvas);
+            for pixel in self.state.iter() {
+                let point = pixel.get_point();
+                let color = pixel.get_color();
+                let x = point.get_x();
+                let y = point.get_y();
+                if x >= 0.0 && y >= 0.0 {
+                    canvas.set_pixel_at(x as usize, y as usize, color);
                 }
             }
         }
@@ -540,22 +576,22 @@ pub mod shape2d {
             match operation {
                 Transform::TRANSLATE(tx, ty) => {
                     for point in self.points.iter_mut() {
-                        *point = transforms::translate((*point).0, (*point).1, tx, ty);
+                        *point = transforms::translate(point, tx, ty);
                     }
                 }
-                Transform::ROTATE(x_pivot, y_pivot, angle) => {
+                Transform::ROTATE(point_pivot, angle) => {
                     for point in self.points.iter_mut() {
-                        *point = transforms::rotate((*point).0, (*point).1, x_pivot, y_pivot, angle);
+                        *point = transforms::rotate(point, &point_pivot, angle);
                     }
                 }
-                Transform::ShearX(x_ref, y_ref, shx) => {
+                Transform::ShearX(point_ref, shx) => {
                     for point in self.points.iter_mut() {
-                        *point = transforms::shear_x((*point).0, (*point).1, x_ref, y_ref, shx);
+                        *point = transforms::shear_x(point, &point_ref, shx);
                     }
                 }
-                Transform::ShearY(x_ref, y_ref, shy) => {
+                Transform::ShearY(point_ref, shy) => {
                     for point in self.points.iter_mut() {
-                        *point = transforms::shear_y((*point).0, (*point).1, x_ref, y_ref, shy);
+                        *point = transforms::shear_y(point, &point_ref, shy);
                     }
                 }
             }
@@ -565,15 +601,15 @@ pub mod shape2d {
     }
 
     pub struct Circle {
-        point_center: (f32, f32),
+        point_center: Point,
         radius: f32,
         color: (u8, u8, u8, u8),
         thickness: u8,
-        state: Vec<(f32, f32)>,
+        state: Vec<Pixel>,
     }
 
     impl Circle {
-        pub fn new(point_center: (f32, f32), radius: f32, color: (u8, u8, u8, u8), thickness: u8) -> Self {
+        pub fn new(point_center: Point, radius: f32, color: (u8, u8, u8, u8), thickness: u8) -> Self {
             let mut circle = Self {
                 point_center,
                 radius,
@@ -601,10 +637,15 @@ pub mod shape2d {
             self.thickness = thickness;
         }
 
-        pub fn draw(&self, canvas: &mut canvas::Canvas) {
-            for point in self.state.iter() {
-                if (*point).0 >= 0.0 && (*point).1 >= 0.0 {
-                    canvas.set_pixel_at((*point).0 as usize, (*point).1 as usize, self.color);
+        pub fn draw(&mut self, canvas: &mut canvas::Canvas) {
+            for pixel in self.state.iter_mut() {
+                let point = pixel.get_point();
+                let color = self.color;
+                pixel.set_color(self.color);
+                let x = point.get_x();
+                let y = point.get_y();
+                if x >= 0.0 && y >= 0.0 {
+                    canvas.set_pixel_at(x as usize, y as usize, color);
                 }
             }
         }
@@ -614,13 +655,19 @@ pub mod shape2d {
             let mut x = radius;
             let mut y = 0_isize;
             let mut d = 1 - radius;
-            let xc = self.point_center.0 as isize;
-            let yc = self.point_center.1 as isize;
+            let xc = self.point_center.get_x() as isize;
+            let yc = self.point_center.get_y() as isize;
 
             if radius > 0 {
-                self.state.push(((x + xc) as f32, (-y + yc) as f32));
-                self.state.push(((y + xc) as f32, (x + yc) as f32));
-                self.state.push(((-y + xc) as f32, (x + yc) as f32));
+                let point = Point::new((x + xc) as f32, (-y + yc) as f32);
+                let pixel = Pixel::new(point, self.get_color());
+                self.state.push(pixel);
+                let point = Point::new((y + xc) as f32, (x + yc) as f32);
+                let pixel = Pixel::new(point, self.get_color());
+                self.state.push(pixel);
+                let point = Point::new((-y + xc) as f32, (x + yc) as f32);
+                let pixel = Pixel::new(point, self.get_color());
+                self.state.push(pixel);
             }
 
             while x > y {
@@ -634,16 +681,38 @@ pub mod shape2d {
                 if x < y {
                     break;
                 }
-                self.state.push(((x + xc) as f32, (y + yc) as f32));
-                self.state.push(((-x + xc) as f32, (y + yc) as f32));
-                self.state.push(((x + xc) as f32, (-y + yc) as f32));
-                self.state.push(((-x + xc) as f32, (-y + yc) as f32));
+                let point = Point::new((x + xc) as f32, (y + yc) as f32);
+                let pixel = Pixel::new(point, self.get_color());
+                self.state.push(pixel);
+
+                let point = Point::new((-x + xc) as f32, (y + yc) as f32);
+                let pixel = Pixel::new(point, self.get_color());
+                self.state.push(pixel);
+
+                let point = Point::new((x + xc) as f32, (-y + yc) as f32);
+                let pixel = Pixel::new(point, self.get_color());
+                self.state.push(pixel);
+
+                let point = Point::new((-x + xc) as f32, (-y + yc) as f32);
+                let pixel = Pixel::new(point, self.get_color());
+                self.state.push(pixel);
 
                 if x != y {
-                    self.state.push(((y + xc) as f32, (x + yc) as f32));
-                    self.state.push(((-y + xc) as f32, (x + yc) as f32));
-                    self.state.push(((y + xc) as f32, (-x + yc) as f32));
-                    self.state.push(((-y + xc) as f32, (-x + yc) as f32));
+                    let point = Point::new((y + xc) as f32, (x + yc) as f32);
+                    let pixel = Pixel::new(point, self.get_color());
+                    self.state.push(pixel);
+
+                    let point = Point::new((-y + xc) as f32, (x + yc) as f32);
+                    let pixel = Pixel::new(point, self.get_color());
+                    self.state.push(pixel);
+
+                    let point = Point::new((y + xc) as f32, (-x + yc) as f32);
+                    let pixel = Pixel::new(point, self.get_color());
+                    self.state.push(pixel);
+
+                    let point = Point::new((-y + xc) as f32, (-x + yc) as f32);
+                    let pixel = Pixel::new(point, self.get_color());
+                    self.state.push(pixel);
                 }
             }
         }
@@ -651,29 +720,28 @@ pub mod shape2d {
         pub fn transform(&mut self, operation: Transform) {
             match operation {
                 Transform::TRANSLATE(tx, ty) => {
-                    self.point_center = transforms::translate(self.point_center.0, self.point_center.1, tx, ty);
+                    self.point_center = transforms::translate(&self.point_center, tx, ty);
                     self.state.clear();
                     self.calculate();
                 }
-                Transform::ROTATE(x_pivot, y_pivot, angle) => {
-                    self.point_center =
-                        transforms::rotate(self.point_center.0, self.point_center.1, x_pivot, y_pivot, angle);
+                Transform::ROTATE(point_pivot, angle) => {
+                    self.point_center = transforms::rotate(&self.point_center, &point_pivot, angle);
                     self.state.clear();
                     self.calculate();
                 }
-                Transform::ShearX(x_ref, y_ref, shx) => {
-                    for point in self.state.iter_mut() {
-                        *point = transforms::shear_x((*point).0, (*point).1, x_ref, y_ref, shx);
+                Transform::ShearX(point_ref, shx) => {
+                    for pixel in self.state.iter_mut() {
+                        let point = transforms::shear_x(&pixel.get_point(), &point_ref, shx);
+                        *pixel = Pixel::new(point, pixel.get_color());
                     }
-                    self.point_center =
-                        transforms::shear_x(self.point_center.0, self.point_center.1, x_ref, y_ref, shx);
+                    self.point_center = transforms::shear_x(&self.point_center, &point_ref, shx);
                 }
-                Transform::ShearY(x_ref, y_ref, shy) => {
-                    for point in self.state.iter_mut() {
-                        *point = transforms::shear_y((*point).0, (*point).1, x_ref, y_ref, shy);
+                Transform::ShearY(point_ref, shy) => {
+                    for pixel in self.state.iter_mut() {
+                        let point = transforms::shear_y(&pixel.get_point(), &point_ref, shy);
+                        *pixel = Pixel::new(point, pixel.get_color());
                     }
-                    self.point_center =
-                        transforms::shear_y(self.point_center.0, self.point_center.1, x_ref, y_ref, shy);
+                    self.point_center = transforms::shear_y(&self.point_center, &point_ref, shy);
                 }
             }
         }
@@ -682,29 +750,20 @@ pub mod shape2d {
 
 pub mod curve {
     use super::shape2d::Line;
-    use crate::canvas;
-    use crate::helpers::comb;
-    use crate::helpers::linspace;
-    use crate::transforms;
-    use crate::Spline;
-    use crate::Transform;
+    use crate::{canvas, transforms};
+    use crate::{helpers::comb, helpers::linspace};
+    use crate::{Pixel, Point, Spline, Transform};
     pub struct Curve {
-        points: Vec<(f32, f32)>,
+        points: Vec<Point>,
         color: (u8, u8, u8, u8),
         thickness: u8,
         npoints: u32,
         spline: Spline,
-        state: Vec<(f32, f32, (u8, u8, u8, u8))>,
+        state: Vec<Pixel>,
     }
 
     impl Curve {
-        pub fn new(
-            points: Vec<(f32, f32)>,
-            color: (u8, u8, u8, u8),
-            thickness: u8,
-            npoints: u32,
-            spline: Spline,
-        ) -> Self {
+        pub fn new(points: Vec<Point>, color: (u8, u8, u8, u8), thickness: u8, npoints: u32, spline: Spline) -> Self {
             let mut npoints = npoints;
             if npoints > 10 {
                 npoints = 10;
@@ -755,26 +814,14 @@ pub mod curve {
         }
 
         pub fn draw(&self, canvas: &mut canvas::Canvas) {
-            let drawable = self.state.clone();
-            let mut points = vec![];
-            for point in drawable.iter() {
-                points.push(((*point).0, (*point).1));
-            }
-            let line = Line::new(points, self.get_color(), self.thickness, canvas);
+            let points = self.state.iter().map(|pixel| pixel.get_point()).collect();
+            let mut line = Line::new(points, self.get_color(), self.thickness, canvas);
             line.draw(canvas);
         }
-        fn knot_j(&self, knot_i: f32, pi: (f32, f32), pj: (f32, f32), alpha: f32) -> f32 {
-            let (xi, yi) = pi;
-            let (xj, yj) = pj;
-            ((xj - xi).powf(2.0) + (yj - yi).powf(2.0)).powf(alpha) + knot_i
+        fn knot_j(&self, knot_i: f32, pi: Point, pj: Point, alpha: f32) -> f32 {
+            ((pj.get_x() - pi.get_x()).powf(2.0) + (pj.get_y() - pi.get_y()).powf(2.0)).powf(alpha) + knot_i
         }
-        fn catmull_rom_spline(
-            &self,
-            p0: (f32, f32),
-            p1: (f32, f32),
-            p2: (f32, f32),
-            p3: (f32, f32),
-        ) -> Vec<(f32, f32, (u8, u8, u8, u8))> {
+        fn catmull_rom_spline(&self, p0: Point, p1: Point, p2: Point, p3: Point) -> Vec<Pixel> {
             let mut alpha = match self.spline {
                 Spline::UNIFORM => 0.0,
                 Spline::CENTRIPETAL => 0.5,
@@ -787,6 +834,11 @@ pub mod curve {
             let t1 = self.knot_j(t0, p0, p1, alpha);
             let t2 = self.knot_j(t1, p1, p2, alpha);
             let t3 = self.knot_j(t2, p2, p3, alpha);
+
+            let p0 = (p0.get_x(), p0.get_y());
+            let p1 = (p1.get_x(), p1.get_y());
+            let p2 = (p2.get_x(), p2.get_y());
+            let p3 = (p3.get_x(), p3.get_y());
 
             let t_lin = linspace(t1, t2, self.npoints);
             let mut c = vec![];
@@ -817,8 +869,10 @@ pub mod curve {
                 let cc0 = ca20;
                 let cc1 = ca21;
 
-                let (x, y) = (cc0 * b1.0 + cc1 * b2.0, cc0 * b1.1 + cc1 * b2.1);
-                c.push((x, y, self.color));
+                let val = (cc0 * b1.0 + cc1 * b2.0, cc0 * b1.1 + cc1 * b2.1);
+                let point = Point::from(val);
+                let pixel = Pixel::new(point, self.color);
+                c.push(pixel);
             }
             c
         }
@@ -827,22 +881,22 @@ pub mod curve {
             match operation {
                 Transform::TRANSLATE(tx, ty) => {
                     for point in self.points.iter_mut() {
-                        *point = transforms::translate((*point).0, (*point).1, tx, ty);
+                        *point = transforms::translate(point, tx, ty);
                     }
                 }
-                Transform::ROTATE(x_pivot, y_pivot, angle) => {
+                Transform::ROTATE(point_pivot, angle) => {
                     for point in self.points.iter_mut() {
-                        *point = transforms::rotate((*point).0, (*point).1, x_pivot, y_pivot, angle);
+                        *point = transforms::rotate(point, &point_pivot, angle);
                     }
                 }
-                Transform::ShearX(x_ref, y_ref, shx) => {
+                Transform::ShearX(point_ref, shx) => {
                     for point in self.points.iter_mut() {
-                        *point = transforms::shear_x((*point).0, (*point).1, x_ref, y_ref, shx);
+                        *point = transforms::shear_x(point, &point_ref, shx);
                     }
                 }
-                Transform::ShearY(x_ref, y_ref, shy) => {
+                Transform::ShearY(point_ref, shy) => {
                     for point in self.points.iter_mut() {
-                        *point = transforms::shear_y((*point).0, (*point).1, x_ref, y_ref, shy);
+                        *point = transforms::shear_y(point, &point_ref, shy);
                     }
                 }
             }
@@ -853,15 +907,15 @@ pub mod curve {
 
     pub struct Bezier {
         npoints: u32,
-        control_points: Vec<(f32, f32)>,
+        control_points: Vec<Point>,
         degree: usize,
         color: (u8, u8, u8, u8),
         thickness: u8,
-        state: Vec<(f32, f32)>,
+        state: Vec<Pixel>,
     }
 
     impl Bezier {
-        pub fn new(npoints: u32, control_points: Vec<(f32, f32)>, color: (u8, u8, u8, u8), thickness: u8) -> Self {
+        pub fn new(npoints: u32, control_points: Vec<Point>, color: (u8, u8, u8, u8), thickness: u8) -> Self {
             let degree = control_points.len() - 1;
             let mut bezier = Self {
                 npoints,
@@ -901,18 +955,21 @@ pub mod curve {
             for t in t_lin.iter() {
                 let mut p = (0.0, 0.0);
                 for (i, point) in self.control_points.iter().enumerate() {
-                    let (x, y) = *point;
+                    let x = point.get_x();
+                    let y = point.get_y();
                     let j = self.blend(i, *t);
                     p.0 += x * j;
                     p.1 += y * j;
                 }
-                self.state.push(p);
+                let point = Point::from(p);
+                let pixel = Pixel::new(point, self.color);
+                self.state.push(pixel);
             }
         }
 
         pub fn draw(&self, canvas: &mut canvas::Canvas) {
-            let drawable = self.state.clone();
-            let line = Line::new(drawable, self.color, self.thickness, canvas);
+            let points = self.state.iter().map(|pixel| pixel.get_point()).collect();
+            let mut line = Line::new(points, self.color, self.thickness, canvas);
             line.draw(canvas);
         }
 
@@ -920,26 +977,28 @@ pub mod curve {
             match operation {
                 Transform::TRANSLATE(tx, ty) => {
                     for point in self.control_points.iter_mut() {
-                        *point = transforms::translate((*point).0, (*point).1, tx, ty);
+                        *point = transforms::translate(point, tx, ty);
                     }
                     self.state.clear();
                     self.calculate();
                 }
-                Transform::ROTATE(x_pivot, y_pivot, angle) => {
+                Transform::ROTATE(point_pivot, angle) => {
                     for point in self.control_points.iter_mut() {
-                        *point = transforms::rotate((*point).0, (*point).1, x_pivot, y_pivot, angle);
+                        *point = transforms::rotate(point, &point_pivot, angle);
                     }
                     self.state.clear();
                     self.calculate();
                 }
-                Transform::ShearX(x_ref, y_ref, shx) => {
-                    for point in self.state.iter_mut() {
-                        *point = transforms::shear_x((*point).0, (*point).1, x_ref, y_ref, shx);
+                Transform::ShearX(point_ref, shx) => {
+                    for pixel in self.state.iter_mut() {
+                        let point = transforms::shear_x(&pixel.get_point(), &point_ref, shx);
+                        *pixel = Pixel::new(point, self.color);
                     }
                 }
-                Transform::ShearY(x_ref, y_ref, shy) => {
-                    for point in self.state.iter_mut() {
-                        *point = transforms::shear_y((*point).0, (*point).1, x_ref, y_ref, shy);
+                Transform::ShearY(point_ref, shy) => {
+                    for pixel in self.state.iter_mut() {
+                        let point = transforms::shear_y(&pixel.get_point(), &point_ref, shy);
+                        *pixel = Pixel::new(point, self.color);
                     }
                 }
             }

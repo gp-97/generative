@@ -1,6 +1,6 @@
+use crate::{Pixel, Point};
 use photon_rs::native::{open_image, save_image};
 use photon_rs::PhotonImage;
-
 use std::num::Wrapping;
 
 pub struct Canvas {
@@ -36,15 +36,18 @@ impl Canvas {
         }
     }
 
-    pub fn get_pixel_at(&self, row: usize, column: usize) -> Option<(u8, u8, u8, u8)> {
+    pub fn get_pixel_at(&self, row: usize, column: usize) -> Option<Pixel> {
         let idx = self.index_at(row, column);
         if idx < self.buffer.len() - 4 {
-            Some((
+            let point = Point::new(row as f32, column as f32);
+            let color = (
                 self.buffer[idx],
                 self.buffer[idx + 1],
                 self.buffer[idx + 2],
                 self.buffer[idx + 3],
-            ))
+            );
+            let pixel = Pixel::new(point, color);
+            Some(pixel)
         } else {
             None
         }
