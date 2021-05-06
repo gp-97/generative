@@ -34,7 +34,7 @@ fn display(canvas: &mut Canvas) {
                 let twoab = 2.0 * a * b;
                 a = aa - bb + x;
                 b = twoab + y;
-                if euclid_dist((aa, bb), (0.0, 0.0)) > 100.0 {
+                if euclid_dist(&Point::new(aa, bb), &Point::new(0.0, 0.0)) > 100.0 {
                     break;
                 }
                 n += 1;

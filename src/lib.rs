@@ -5,6 +5,8 @@ pub mod shape;
 pub mod shape_aa;
 pub mod transforms;
 
+use std::fmt::Display;
+
 #[derive(Copy, Clone)]
 pub enum Angle {
     DEGREE(f32),
@@ -37,8 +39,8 @@ impl Point {
         Self { x, y }
     }
     pub fn get_unit_vec(&self) -> Point {
-        let x = self.x / helpers::euclid_dist((self.x, self.y), (0.0, 0.0));
-        let y = self.y / helpers::euclid_dist((self.x, self.y), (0.0, 0.0));
+        let x = self.x / helpers::euclid_dist(&self, &Point::new(0.0, 0.0));
+        let y = self.y / helpers::euclid_dist(&self, &Point::new(0.0, 0.0));
         Self { x, y }
     }
     pub fn set_x(&mut self, x: f32) {
@@ -73,6 +75,11 @@ impl From<Vec<f32>> for Point {
     }
 }
 
+impl Display for Point {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "({}, {})", self.x, self.y)
+    }
+}
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct Pixel {
     point: Point,
