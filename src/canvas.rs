@@ -3,6 +3,7 @@ use photon_rs::native::{open_image, save_image};
 use photon_rs::PhotonImage;
 use std::num::Wrapping;
 
+#[derive(Clone, Debug)]
 pub struct Canvas {
     width: u32,
     height: u32,
