@@ -1,20 +1,26 @@
 pub mod shape2d {
     use crate::{canvas, transforms};
     use crate::{Pixel, Point, Transform};
-    use std::mem::swap;
+    use std::{mem::swap, vec};
     pub struct Line {
         points: Vec<Point>,
         color: (u8, u8, u8, u8),
         thickness: u8,
+        end_points: Vec<Pixel>,
         state: Vec<Pixel>,
     }
 
     impl Line {
         pub fn new(points: Vec<Point>, color: (u8, u8, u8, u8), thickness: u8, canvas: &canvas::Canvas) -> Self {
+            let mut end_points: Vec<Pixel> = vec![];
+            for point in points.iter() {
+                end_points.push(Pixel::new(*point, color));
+            }
             let mut line = Self {
                 points,
                 color,
                 thickness,
+                end_points,
                 state: vec![],
             };
             line.calculate(canvas);
@@ -27,6 +33,10 @@ pub mod shape2d {
 
         pub fn get_thickness(&self) -> u8 {
             self.thickness
+        }
+
+        pub fn get_end_point(&self) -> Vec<Pixel> {
+            self.end_points.clone()
         }
 
         pub fn set_color(&mut self, color: (u8, u8, u8, u8)) {
@@ -217,20 +227,36 @@ pub mod shape2d {
                     for point in self.points.iter_mut() {
                         *point = transforms::translate(point, tx, ty);
                     }
+                    for i in 0..self.end_points.len() {
+                        let epoint = transforms::translate(&self.end_points[i].get_point(), tx, ty);
+                        self.end_points[i].set_point(epoint);
+                    }
                 }
                 Transform::ROTATE(point_pivot, angle) => {
                     for point in self.points.iter_mut() {
                         *point = transforms::rotate(point, &point_pivot, angle);
+                    }
+                    for i in 0..self.end_points.len() {
+                        let epoint = transforms::rotate(&self.end_points[i].get_point(), &point_pivot, angle);
+                        self.end_points[i].set_point(epoint);
                     }
                 }
                 Transform::ShearX(point_ref, shx) => {
                     for point in self.points.iter_mut() {
                         *point = transforms::shear_x(point, &point_ref, shx);
                     }
+                    for i in 0..self.end_points.len() {
+                        let epoint = transforms::shear_x(&self.end_points[i].get_point(), &point_ref, shx);
+                        self.end_points[i].set_point(epoint);
+                    }
                 }
                 Transform::ShearY(point_ref, shy) => {
                     for point in self.points.iter_mut() {
                         *point = transforms::shear_y(point, &point_ref, shy);
+                    }
+                    for i in 0..self.end_points.len() {
+                        let epoint = transforms::shear_y(&self.end_points[i].get_point(), &point_ref, shy);
+                        self.end_points[i].set_point(epoint);
                     }
                 }
             }
@@ -240,7 +266,7 @@ pub mod shape2d {
     }
     pub struct Rectangle {
         points: [Point; 2],
-        vertices: Vec<Point>,
+        vertices: Vec<Pixel>,
         color: (u8, u8, u8, u8),
         thickness: u8,
         state: Vec<Pixel>,
@@ -253,10 +279,10 @@ pub mod shape2d {
             let x2 = points[1].get_x();
             let y2 = points[1].get_y();
             let vertices = vec![
-                Point::new(x1, y1),
-                Point::new(x1, y2),
-                Point::new(x2, y2),
-                Point::new(x2, y1),
+                Pixel::new(Point::new(x1, y1), color),
+                Pixel::new(Point::new(x1, y2), color),
+                Pixel::new(Point::new(x2, y2), color),
+                Pixel::new(Point::new(x2, y1), color),
             ];
             let mut rect = Self {
                 points,
@@ -285,12 +311,16 @@ pub mod shape2d {
             self.thickness = thickness;
         }
 
-        fn get_vertices(&self) -> Vec<Point> {
-            self.vertices.clone()
+        pub fn set_points(&mut self, points: [Point; 2]) {
+            self.points = points;
         }
 
-        fn set_vertices(&mut self, vertices: Vec<Point>) {
-            self.vertices = vertices;
+        pub fn get_points(&self) -> [Point; 2] {
+            self.points.clone()
+        }
+
+        pub fn get_vertices(&self) -> Vec<Pixel> {
+            self.vertices.clone()
         }
 
         pub fn draw(&mut self, canvas: &mut canvas::Canvas) {
@@ -309,15 +339,17 @@ pub mod shape2d {
 
         fn calculate(&mut self, canvas: &canvas::Canvas) {
             if self.points.len() == 2 {
-                let p1 = self.points[0]; // (x1, y1)
-                let p2 = self.points[1]; // (x2, y2)
-                let p3 = Point::new(p1.get_x(), p2.get_y()); //(x1, y2)
-                let p4 = Point::new(p2.get_x(), p1.get_y()); //(x2, y1)
+                let p1 = self.vertices[0].get_point();
+                let p2 = self.vertices[2].get_point();
+                let p3 = self.vertices[1].get_point();
+                let p4 = self.vertices[3].get_point();
 
                 let line = Line::new(vec![p1, p3], self.color, self.thickness, canvas);
                 for pixel in line.state.iter() {
                     self.state.push(*pixel);
                 }
+                self.vertices[0] = line.get_end_point()[0];
+                self.vertices[1] = line.get_end_point()[1];
                 let line = Line::new(vec![p3, p2], self.color, self.thickness, canvas);
                 for pixel in line.state.iter() {
                     self.state.push(*pixel);
@@ -326,6 +358,8 @@ pub mod shape2d {
                 for pixel in line.state.iter() {
                     self.state.push(*pixel);
                 }
+                self.vertices[2] = line.get_end_point()[0];
+                self.vertices[3] = line.get_end_point()[1];
                 let line = Line::new(vec![p4, p1], self.color, self.thickness, canvas);
                 for pixel in line.state.iter() {
                     self.state.push(*pixel);
@@ -339,13 +373,20 @@ pub mod shape2d {
                         let point = transforms::translate(&pixel.get_point(), tx, ty);
                         *pixel = Pixel::new(point, pixel.get_color());
                     }
+                    for i in 0..self.vertices.len() {
+                        let vpoint = transforms::translate(&self.vertices[i].get_point(), tx, ty);
+                        self.vertices[i].set_point(vpoint);
+                    }
                 }
                 Transform::ROTATE(point_pivot, angle) => {
-                    let mut points = self.get_vertices();
-                    for point in points.iter_mut() {
-                        *point = transforms::rotate(point, &point_pivot, angle);
+                    let mut points = vec![];
+                    for pixel in self.vertices.iter_mut() {
+                        let point = transforms::rotate(&pixel.get_point(), &point_pivot, angle);
+                        points.push(point.clone());
+                        pixel.set_point(point);
                     }
-                    self.set_vertices(points.clone());
+                    // let end_points = [points[0], points[2]];
+                    // self.set_points(end_points);
                     self.state.clear();
 
                     let line = Line::new(vec![points[0], points[1]], self.color, self.thickness, canvas);
@@ -370,11 +411,19 @@ pub mod shape2d {
                         let point = transforms::shear_x(&pixel.get_point(), &point_ref, shx);
                         *pixel = Pixel::new(point, pixel.get_color());
                     }
+                    for i in 0..self.vertices.len() {
+                        let vpoint = transforms::shear_x(&self.vertices[i].get_point(), &point_ref, shx);
+                        self.vertices[i].set_point(vpoint);
+                    }
                 }
                 Transform::ShearY(point_ref, shy) => {
                     for pixel in self.state.iter_mut() {
                         let point = transforms::shear_y(&pixel.get_point(), &point_ref, shy);
                         *pixel = Pixel::new(point, pixel.get_color());
+                    }
+                    for i in 0..self.vertices.len() {
+                        let vpoint = transforms::shear_y(&self.vertices[i].get_point(), &point_ref, shy);
+                        self.vertices[i].set_point(vpoint);
                     }
                 }
             }
@@ -384,7 +433,7 @@ pub mod shape2d {
     pub struct Square {
         points: Point,
         edge: f32,
-        vertices: Vec<Point>,
+        vertices: Vec<Pixel>,
         color: (u8, u8, u8, u8),
         thickness: u8,
         state: Vec<Pixel>,
@@ -397,10 +446,10 @@ pub mod shape2d {
             let x2 = x1 + edge;
             let y2 = y1 + edge;
             let vertices = vec![
-                Point::new(x1, y1),
-                Point::new(x1, y2),
-                Point::new(x2, y2),
-                Point::new(x2, y1),
+                Pixel::new(Point::new(x1, y1), color),
+                Pixel::new(Point::new(x1, y2), color),
+                Pixel::new(Point::new(x2, y2), color),
+                Pixel::new(Point::new(x2, y1), color),
             ];
             let mut square = Self {
                 points,
@@ -443,11 +492,11 @@ pub mod shape2d {
             self.thickness = thickness;
         }
 
-        fn set_vertices(&mut self, vertices: Vec<Point>) {
+        pub fn set_vertices(&mut self, vertices: Vec<Pixel>) {
             self.vertices = vertices;
         }
 
-        fn get_vertices(&self) -> Vec<Point> {
+        pub fn get_vertices(&self) -> Vec<Pixel> {
             self.vertices.clone()
         }
 
@@ -474,13 +523,18 @@ pub mod shape2d {
                         let point = transforms::translate(&pixel.get_point(), tx, ty);
                         *pixel = Pixel::new(point, pixel.get_color());
                     }
+                    for i in 0..self.vertices.len() {
+                        let vpoint = transforms::translate(&self.vertices[i].get_point(), tx, ty);
+                        self.vertices[i].set_point(vpoint);
+                    }
                 }
                 Transform::ROTATE(point_pivot, angle) => {
-                    let mut points = self.get_vertices();
-                    for point in points.iter_mut() {
-                        *point = transforms::rotate(point, &point_pivot, angle);
+                    let mut points: Vec<Point> = vec![];
+                    for pixel in self.vertices.iter_mut() {
+                        let new_point = transforms::rotate(&pixel.get_point(), &point_pivot, angle);
+                        points.push(new_point);
+                        pixel.set_point(new_point);
                     }
-                    self.set_vertices(points.clone());
                     self.state.clear();
 
                     let line = Line::new(vec![points[0], points[1]], self.color, self.thickness, canvas);
@@ -505,11 +559,19 @@ pub mod shape2d {
                         let point = transforms::shear_x(&pixel.get_point(), &point_ref, shx);
                         *pixel = Pixel::new(point, pixel.get_color());
                     }
+                    for i in 0..self.vertices.len() {
+                        let vpoint = transforms::shear_x(&self.vertices[i].get_point(), &point_ref, shx);
+                        self.vertices[i].set_point(vpoint);
+                    }
                 }
                 Transform::ShearY(point_ref, shy) => {
                     for pixel in self.state.iter_mut() {
                         let point = transforms::shear_y(&pixel.get_point(), &point_ref, shy);
                         *pixel = Pixel::new(point, pixel.get_color());
+                    }
+                    for i in 0..self.vertices.len() {
+                        let vpoint = transforms::shear_y(&self.vertices[i].get_point(), &point_ref, shy);
+                        self.vertices[i].set_point(vpoint);
                     }
                 }
             }
@@ -520,15 +582,21 @@ pub mod shape2d {
         points: Vec<Point>,
         color: (u8, u8, u8, u8),
         thickness: u8,
+        vertices: Vec<Pixel>,
         state: Vec<Pixel>,
     }
 
     impl Polygon {
         pub fn new(points: Vec<Point>, color: (u8, u8, u8, u8), thickness: u8, canvas: &canvas::Canvas) -> Self {
+            let mut vertices: Vec<Pixel> = vec![];
+            for point in points.iter() {
+                vertices.push(Pixel::new(*point, color));
+            }
             let mut poly = Self {
                 points,
                 color,
                 thickness,
+                vertices,
                 state: vec![],
             };
             poly.calculate(canvas);
@@ -541,6 +609,10 @@ pub mod shape2d {
 
         pub fn get_thickness(&self) -> u8 {
             self.thickness
+        }
+
+        pub fn get_vertices(&self) -> Vec<Pixel> {
+            self.vertices.clone()
         }
 
         pub fn set_color(&mut self, color: (u8, u8, u8, u8)) {
@@ -578,20 +650,36 @@ pub mod shape2d {
                     for point in self.points.iter_mut() {
                         *point = transforms::translate(point, tx, ty);
                     }
+                    for i in 0..self.vertices.len() {
+                        let vpoint = transforms::translate(&self.vertices[i].get_point(), tx, ty);
+                        self.vertices[i].set_point(vpoint);
+                    }
                 }
                 Transform::ROTATE(point_pivot, angle) => {
                     for point in self.points.iter_mut() {
                         *point = transforms::rotate(point, &point_pivot, angle);
+                    }
+                    for i in 0..self.vertices.len() {
+                        let vpoint = transforms::rotate(&self.vertices[i].get_point(), &point_pivot, angle);
+                        self.vertices[i].set_point(vpoint);
                     }
                 }
                 Transform::ShearX(point_ref, shx) => {
                     for point in self.points.iter_mut() {
                         *point = transforms::shear_x(point, &point_ref, shx);
                     }
+                    for i in 0..self.vertices.len() {
+                        let vpoint = transforms::shear_x(&self.vertices[i].get_point(), &point_ref, shx);
+                        self.vertices[i].set_point(vpoint);
+                    }
                 }
                 Transform::ShearY(point_ref, shy) => {
                     for point in self.points.iter_mut() {
                         *point = transforms::shear_y(point, &point_ref, shy);
+                    }
+                    for i in 0..self.vertices.len() {
+                        let vpoint = transforms::shear_y(&self.vertices[i].get_point(), &point_ref, shy);
+                        self.vertices[i].set_point(vpoint);
                     }
                 }
             }
