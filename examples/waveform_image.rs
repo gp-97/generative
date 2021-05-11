@@ -1,5 +1,4 @@
-use generative::canvas::Canvas;
-use generative::shape::shape2d::Line;
+use generative::prelude::*;
 
 fn setup() -> Canvas {
     let mut canvas = Canvas::image_as_canvas("examples/inputs/animal.jpg");
