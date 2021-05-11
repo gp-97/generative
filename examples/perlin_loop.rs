@@ -1,7 +1,4 @@
-use generative::canvas::Canvas;
-use generative::shape::shape2d::Polygon;
-use generative::Transform;
-use perlin2d::PerlinNoise2D;
+use generative::prelude::*;
 
 fn setup() -> Canvas {
     let mut canvas = Canvas::new(3840 * 2, 2160 * 2);

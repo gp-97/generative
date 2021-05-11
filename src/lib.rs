@@ -1,5 +1,6 @@
 pub mod canvas;
 pub mod helpers;
+pub mod prelude;
 pub mod shape;
 pub mod shape_aa;
 pub mod transforms;

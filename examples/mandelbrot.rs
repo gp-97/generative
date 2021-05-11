@@ -1,5 +1,4 @@
-use generative::canvas::Canvas;
-use generative::helpers::*;
+use generative::prelude::*;
 
 fn setup() -> Canvas {
     let mut canvas = Canvas::new(2840, 1600);
