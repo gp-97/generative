@@ -13,6 +13,21 @@ pub enum Angle {
     RADIAN(f32),
 }
 
+impl Angle {
+    pub fn get_angle_rad(angle: Angle) -> f32 {
+        match angle {
+            Angle::DEGREE(ang) => (std::f32::consts::PI / 180.0) * ang,
+            Angle::RADIAN(ang) => ang,
+        }
+    }
+    pub fn get_angle_deg(angle: Angle) -> f32 {
+        match angle {
+            Angle::DEGREE(ang) => ang,
+            Angle::RADIAN(ang) => (180.0 / std::f32::consts::PI) * ang,
+        }
+    }
+}
+
 #[derive(Copy, Clone)]
 pub enum Transform {
     TRANSLATE(f32, f32),

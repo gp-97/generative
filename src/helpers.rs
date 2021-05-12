@@ -5,6 +5,7 @@ pub fn random(low: f32, high: f32) -> f32 {
     let mut rng = rand::thread_rng();
     rng.gen_range(low..high)
 }
+
 pub fn linspace(start: f32, end: f32, npoints: u32) -> Vec<f32> {
     let diff = (end - start) / (npoints as f32 - 1.0);
     let mut points = vec![start];
