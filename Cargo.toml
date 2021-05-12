@@ -9,3 +9,4 @@ edition = "2018"
 [dependencies]
 photon-rs = "0.3.0"
 perlin2d = "0.2.6"
+rand = "0.8.3"
