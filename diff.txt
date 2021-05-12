@@ -1,0 +1,3769 @@
+diff --git a/examples/mandelbrot.rs b/examples/mandelbrot.rs
+index e8d2f43..ec3f5c7 100644
+--- a/examples/mandelbrot.rs
++++ b/examples/mandelbrot.rs
+@@ -1,4 +1,6 @@
+-use generative::prelude::*;
++use generative::canvas::Canvas;
++use generative::helpers::*;
++use generative::Point;
+ 
+ fn setup() -> Canvas {
+     let mut canvas = Canvas::new(2840, 1600);
+@@ -34,7 +36,7 @@ fn display(canvas: &mut Canvas) {
+                 let twoab = 2.0 * a * b;
+                 a = aa - bb + x;
+                 b = twoab + y;
+-                if euclid_dist((aa, bb), (0.0, 0.0)) > 100.0 {
++                if euclid_dist(&Point::new(aa, bb), &Point::new(0.0, 0.0)) > 100.0 {
+                     break;
+                 }
+                 n += 1;
+diff --git a/examples/perlin_loop.rs b/examples/perlin_loop.rs
+index 9a5bdbd..6277478 100644
+--- a/examples/perlin_loop.rs
++++ b/examples/perlin_loop.rs
+@@ -1,4 +1,8 @@
+-use generative::prelude::*;
++use generative::canvas::Canvas;
++use generative::shape::shape2d::Polygon;
++use generative::Point;
++use generative::Transform;
++use perlin2d::PerlinNoise2D;
+ 
+ fn setup() -> Canvas {
+     let mut canvas = Canvas::new(3840 * 2, 2160 * 2);
+@@ -10,8 +14,8 @@ fn display(canvas: &mut Canvas) {
+     let mut zoff = 0.1;
+     let mut tx = 1_f32;
+     let mut ty = 1_f32;
++    let noise = PerlinNoise2D::new(4, 3.0, 0.5, 0.75, 10.0, (100.0, 100.0), 0.5, 101);
+     while zoff < 10.0 {
+-        let noise = PerlinNoise2D::new(4, 3.0, 0.5, 0.75, 10.0, (100.0, 100.0), 0.5, 101);
+         let mut points = vec![];
+         let mut theta: f64 = 0.0;
+         while theta < (std::f64::consts::PI * 2.0) {
+@@ -28,7 +32,8 @@ fn display(canvas: &mut Canvas) {
+         tx += 0.001;
+         ty += 0.001;
+         zoff += 0.01;
+-        let mut poly = Polygon::new(points, color, 1);
++        let points_interim = points.iter().map(|point| Point::from(*point)).collect();
++        let mut poly = Polygon::new(points_interim, color, 1);
+         poly.transform(Transform::TRANSLATE(
+             canvas.get_height() as f32 / 2.0,
+             canvas.get_width() as f32 / 2.0,
+diff --git a/examples/waveform_image.rs b/examples/waveform_image.rs
+index 33e9106..0302119 100644
+--- a/examples/waveform_image.rs
++++ b/examples/waveform_image.rs
+@@ -1,4 +1,6 @@
+-use generative::prelude::*;
++use generative::canvas::Canvas;
++use generative::shape::shape2d::Line;
++use generative::Point;
+ 
+ fn setup() -> Canvas {
+     let mut canvas = Canvas::image_as_canvas("examples/inputs/animal.jpg");
+@@ -25,7 +27,7 @@ fn display(canvas: &mut Canvas, amplitude: f32) {
+                 (width as f32 - height as f32).abs(),
+             ) as usize;
+             let color = match img.get_pixel_at(row, col) {
+-                Some((r, g, b, a)) => (r, g, b, a),
++                Some(pixel) => pixel.get_color(),
+                 None => continue,
+             };
+             l += (255.0 - color.0 as f32) / (255.0);
+@@ -44,7 +46,8 @@ fn display(canvas: &mut Canvas, amplitude: f32) {
+             points.push((row as f32, col as f32));
+             x += 1.0;
+         }
+-        let line = Line::new(points, (0, 0, 0, 255), 1);
++        let points = points.iter().map(|point| Point::from(*point)).collect();
++        let mut line = Line::new(points, (0, 0, 0, 255), 1);
+         line.draw(canvas);
+         y += 1.0;
+     }
+diff --git a/src/canvas.rs b/src/canvas.rs
+index 120e8b7..7151aae 100644
+--- a/src/canvas.rs
++++ b/src/canvas.rs
+@@ -1,6 +1,9 @@
++use crate::{Pixel, Point};
+ use photon_rs::native::{open_image, save_image};
+ use photon_rs::PhotonImage;
++use std::num::Wrapping;
+ 
++#[derive(Clone, Debug)]
+ pub struct Canvas {
+     width: u32,
+     height: u32,
+@@ -34,15 +37,18 @@ impl Canvas {
+         }
+     }
+ 
+-    pub fn get_pixel_at(&self, row: usize, column: usize) -> Option<(u8, u8, u8, u8)> {
++    pub fn get_pixel_at(&self, row: usize, column: usize) -> Option<Pixel> {
+         let idx = self.index_at(row, column);
+         if idx < self.buffer.len() - 4 {
+-            Some((
++            let point = Point::new(row as f32, column as f32);
++            let color = (
+                 self.buffer[idx],
+                 self.buffer[idx + 1],
+                 self.buffer[idx + 2],
+                 self.buffer[idx + 3],
+-            ))
++            );
++            let pixel = Pixel::new(point, color);
++            Some(pixel)
+         } else {
+             None
+         }
+@@ -65,7 +71,11 @@ impl Canvas {
+     }
+ 
+     fn index_at(&self, row: usize, column: usize) -> usize {
+-        row * self.width as usize * 4 + column as usize * 4
++        Wrapping(
++            Wrapping(row) * Wrapping(self.width as usize * 4) + Wrapping(Wrapping(column as usize) * Wrapping(4)).0,
++        )
++        .0
++         .0
+     }
+ 
+     pub fn save_as_image(&self, image_path: &str) {
+diff --git a/src/helpers.rs b/src/helpers.rs
+index 0c51179..d0cc932 100644
+--- a/src/helpers.rs
++++ b/src/helpers.rs
+@@ -1,3 +1,5 @@
++use crate::Point;
++
+ pub fn linspace(start: f32, end: f32, npoints: u32) -> Vec<f32> {
+     let diff = (end - start) / (npoints as f32 - 1.0);
+     let mut points = vec![start];
+@@ -45,6 +47,47 @@ pub fn norm(val: f32, start: f32, end: f32) -> f32 {
+     map(val, start, end, 0.0, 1.0, false)
+ }
+ 
+-pub fn euclid_dist(p1: (f32, f32), p2: (f32, f32)) -> f32 {
+-    ((p1.0 - p2.0).powf(2.0) + (p1.1 - p2.1).powf(2.0)).powf(0.5)
++pub fn euclid_dist(p1: &Point, p2: &Point) -> f32 {
++    ((p1.get_x() - p2.get_x()).powf(2.0) + (p1.get_y() - p2.get_y()).powf(2.0)).powf(0.5)
++}
++
++fn merge_sort(arr: &mut Vec<Point>, start: usize, end: usize, temp_arr: &mut Vec<Point>) {
++    if start < end {
++        let mid = start + (end - start) / 2;
++        merge_sort(arr, start, mid, temp_arr);
++        merge_sort(arr, mid + 1, end, temp_arr);
++
++        let mut i = start;
++        let mut j = end;
++        let mut k = start;
++
++        while i <= mid {
++            temp_arr[i] = arr[i];
++            i += 1;
++        }
++        while j > mid {
++            temp_arr[i] = arr[j];
++            i += 1;
++            j -= 1;
++        }
++        i = start;
++        j = end;
++        while k <= end {
++            if temp_arr[i] < temp_arr[j] {
++                arr[k] = temp_arr[i];
++                i += 1;
++            } else {
++                arr[k] = temp_arr[j];
++                j -= 1;
++            }
++            k += 1;
++        }
++    }
++}
++
++pub fn sort(arr: &mut Vec<Point>) {
++    let mut temp_arr = arr.clone();
++    let start = 0;
++    let end = arr.len() - 1;
++    merge_sort(arr, start, end, &mut temp_arr);
+ }
+diff --git a/src/lib.rs b/src/lib.rs
+index 37165c0..621aba1 100644
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -1,10 +1,12 @@
+ pub mod canvas;
+ pub mod helpers;
+-pub mod prelude;
++pub mod scan_line_fill;
+ pub mod shape;
+ pub mod shape_aa;
+ pub mod transforms;
+ 
++use std::fmt::Display;
++
+ #[derive(Copy, Clone)]
+ pub enum Angle {
+     DEGREE(f32),
+@@ -14,9 +16,9 @@ pub enum Angle {
+ #[derive(Copy, Clone)]
+ pub enum Transform {
+     TRANSLATE(f32, f32),
+-    ROTATE(f32, f32, Angle),
+-    ShearX(f32, f32, f32),
+-    ShearY(f32, f32, f32),
++    ROTATE(Point, Angle),
++    ShearX(Point, f32),
++    ShearY(Point, f32),
+ }
+ 
+ #[derive(Copy, Clone)]
+@@ -25,3 +27,85 @@ pub enum Spline {
+     CENTRIPETAL,
+     CHORDAL,
+ }
++
++#[derive(Copy, Clone, Debug, PartialOrd, PartialEq)]
++pub struct Point {
++    x: f32,
++    y: f32,
++}
++
++impl Point {
++    pub fn new(x: f32, y: f32) -> Self {
++        Self { x, y }
++    }
++    pub fn get_unit_vec(&self) -> Point {
++        let x = self.x / helpers::euclid_dist(&self, &Point::new(0.0, 0.0));
++        let y = self.y / helpers::euclid_dist(&self, &Point::new(0.0, 0.0));
++        Self { x, y }
++    }
++    pub fn set_x(&mut self, x: f32) {
++        self.x = x;
++    }
++    pub fn set_y(&mut self, y: f32) {
++        self.y = y;
++    }
++    pub fn get_x(&self) -> f32 {
++        self.x
++    }
++    pub fn get_y(&self) -> f32 {
++        self.y
++    }
++}
++
++impl From<(f32, f32)> for Point {
++    fn from(point_tuple: (f32, f32)) -> Point {
++        Point {
++            x: point_tuple.0,
++            y: point_tuple.1,
++        }
++    }
++}
++
++impl From<Vec<f32>> for Point {
++    fn from(point_vec: Vec<f32>) -> Point {
++        Point {
++            x: point_vec[0],
++            y: point_vec[1],
++        }
++    }
++}
++
++impl Display for Point {
++    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
++        write!(f, "({}, {})", self.x, self.y)
++    }
++}
++#[derive(Copy, Clone, Debug, PartialEq)]
++pub struct Pixel {
++    point: Point,
++    color: (u8, u8, u8, u8),
++}
++
++impl Pixel {
++    pub fn new(point: Point, color: (u8, u8, u8, u8)) -> Self {
++        Self { point, color }
++    }
++    pub fn set_point(&mut self, point: Point) {
++        self.point = point;
++    }
++    pub fn set_color(&mut self, color: (u8, u8, u8, u8)) {
++        self.color = color;
++    }
++    pub fn get_point(&self) -> Point {
++        self.point.clone()
++    }
++    pub fn get_color(&self) -> (u8, u8, u8, u8) {
++        self.color
++    }
++    pub fn is_within_canvas(self, canvas: &canvas::Canvas) -> bool {
++        let x = self.point.x as usize;
++        let y = self.point.y as usize;
++
++        x < canvas.get_height() as usize && y < canvas.get_width() as usize
++    }
++}
+diff --git a/src/prelude.rs b/src/prelude.rs
+deleted file mode 100644
+index bb3905a..0000000
+--- a/src/prelude.rs
++++ /dev/null
+@@ -1,12 +0,0 @@
+-pub use crate::canvas::Canvas;
+-pub use crate::helpers::*;
+-pub use crate::shape::curve::{Bezier, Curve};
+-pub use crate::shape::shape2d::{Circle, Line, Polygon, Rectangle, Square};
+-pub use crate::shape_aa::curve::Bezier as Bezier_aa;
+-pub use crate::shape_aa::curve::Curve as Curve_aa;
+-pub use crate::shape_aa::shape2d::{
+-    Circle as Circle_aa, Line as Line_aa, Polygon as Polygon_aa, Rectangle as Rectangle_aa, Square as Square_aa,
+-};
+-pub use crate::transforms::*;
+-pub use crate::{Angle, Spline, Transform};
+-pub use perlin2d::PerlinNoise2D;
+diff --git a/src/scan_line_fill.rs b/src/scan_line_fill.rs
+new file mode 100644
+index 0000000..8b13789
+--- /dev/null
++++ b/src/scan_line_fill.rs
+@@ -0,0 +1 @@
++
+diff --git a/src/shape.rs b/src/shape.rs
+index d947a7f..ace29d7 100644
+--- a/src/shape.rs
++++ b/src/shape.rs
+@@ -1,16 +1,17 @@
+ pub mod shape2d {
+-    use crate::canvas;
+-    use crate::transforms;
+-    use crate::Transform;
++    use std::vec;
++
++    use crate::{canvas, transforms};
++    use crate::{Pixel, Point, Transform};
+     pub struct Line {
+-        points: Vec<(f32, f32)>,
++        points: Vec<Point>,
+         color: (u8, u8, u8, u8),
+         thickness: u8,
+-        state: Vec<(f32, f32)>,
++        state: Vec<Pixel>,
+     }
+ 
+     impl Line {
+-        pub fn new(points: Vec<(f32, f32)>, color: (u8, u8, u8, u8), thickness: u8) -> Self {
++        pub fn new(points: Vec<Point>, color: (u8, u8, u8, u8), thickness: u8) -> Self {
+             let mut line = Self {
+                 points,
+                 color,
+@@ -37,25 +38,33 @@ pub mod shape2d {
+             self.thickness = thickness;
+         }
+ 
+-        pub fn draw(&self, canvas: &mut canvas::Canvas) {
+-            for point in self.state.iter() {
+-                if (*point).0 >= 0.0 && (*point).1 >= 0.0 {
+-                    canvas.set_pixel_at((*point).0 as usize, (*point).1 as usize, self.color);
++        pub fn draw(&mut self, canvas: &mut canvas::Canvas) {
++            for pixel in self.state.iter_mut() {
++                let point = pixel.get_point();
++                let color = self.color;
++                pixel.set_color(self.color);
++                let x = point.get_x();
++                let y = point.get_y();
++                if x >= 0.0 && y >= 0.0 {
++                    canvas.set_pixel_at(x as usize, y as usize, color);
+                 }
+             }
+         }
+         fn calculate(&mut self) {
+             if !self.points.is_empty() {
+                 if self.points.len() == 1 {
+-                    let x = self.points[0].0;
+-                    let y = self.points[0].1;
+-                    self.state.push((x, y));
++                    let point = self.points[0];
++                    let pixel = Pixel::new(point, self.color);
++                    self.state.push(pixel);
+                 } else {
+                     for i in 0..(self.points.len() - 1) {
+-                        let x1 = self.points[i].0;
+-                        let y1 = self.points[i].1;
+-                        let x2 = self.points[i + 1].0;
+-                        let y2 = self.points[i + 1].1;
++                        let p1 = self.points[i];
++                        let p2 = self.points[i + 1];
++
++                        let x1 = p1.get_x();
++                        let y1 = p1.get_y();
++                        let x2 = p2.get_x();
++                        let y2 = p2.get_y();
+ 
+                         if x1 == x2 {
+                             let x1 = x1 as isize;
+@@ -67,7 +76,8 @@ pub mod shape2d {
+                                 y_end = y1 as isize;
+                             }
+                             while y_start <= y_end {
+-                                self.state.push((x1 as f32, y_start as f32));
++                                let pixel = Pixel::new(Point::from((x1 as f32, y_start as f32)), self.color);
++                                self.state.push(pixel);
+                                 y_start += 1;
+                             }
+                         } else if y1 == y2 {
+@@ -81,7 +91,8 @@ pub mod shape2d {
+                                 x_end = x1;
+                             }
+                             while x_start <= x_end {
+-                                self.state.push((x_start as f32, y1 as f32));
++                                let pixel = Pixel::new(Point::from((x_start as f32, y1 as f32)), self.color);
++                                self.state.push(pixel);
+                                 x_start += 1;
+                             }
+                         } else {
+@@ -104,7 +115,8 @@ pub mod shape2d {
+                             let mut err = dx + dy;
+ 
+                             loop {
+-                                self.state.push((x1 as f32, y1 as f32));
++                                let pixel = Pixel::new(Point::from((x1 as f32, y1 as f32)), self.color);
++                                self.state.push(pixel);
+                                 if x1 == x2 && y1 == y2 {
+                                     break;
+                                 }
+@@ -127,22 +139,22 @@ pub mod shape2d {
+             match operation {
+                 Transform::TRANSLATE(tx, ty) => {
+                     for point in self.points.iter_mut() {
+-                        *point = transforms::translate((*point).0, (*point).1, tx, ty);
++                        *point = transforms::translate(point, tx, ty);
+                     }
+                 }
+-                Transform::ROTATE(x_pivot, y_pivot, angle) => {
++                Transform::ROTATE(point_pivot, angle) => {
+                     for point in self.points.iter_mut() {
+-                        *point = transforms::rotate((*point).0, (*point).1, x_pivot, y_pivot, angle);
++                        *point = transforms::rotate(point, &point_pivot, angle);
+                     }
+                 }
+-                Transform::ShearX(x_ref, y_ref, shx) => {
++                Transform::ShearX(point_ref, shx) => {
+                     for point in self.points.iter_mut() {
+-                        *point = transforms::shear_x((*point).0, (*point).1, x_ref, y_ref, shx);
++                        *point = transforms::shear_x(point, &point_ref, shx);
+                     }
+                 }
+-                Transform::ShearY(x_ref, y_ref, shy) => {
++                Transform::ShearY(point_ref, shy) => {
+                     for point in self.points.iter_mut() {
+-                        *point = transforms::shear_y((*point).0, (*point).1, x_ref, y_ref, shy);
++                        *point = transforms::shear_y(point, &point_ref, shy);
+                     }
+                 }
+             }
+@@ -152,18 +164,32 @@ pub mod shape2d {
+     }
+ 
+     pub struct Rectangle {
+-        points: [(f32, f32); 2],
++        points: [Point; 2],
+         color: (u8, u8, u8, u8),
+         thickness: u8,
+-        state: Vec<(f32, f32)>,
++        vertices: Vec<Pixel>,
++        state: Vec<Pixel>,
+     }
+ 
+     impl Rectangle {
+-        pub fn new(points: [(f32, f32); 2], color: (u8, u8, u8, u8), thickness: u8) -> Self {
++        pub fn new(points: [Point; 2], color: (u8, u8, u8, u8), thickness: u8) -> Self {
++            // let p1 = points[0]; // (x1, y1)
++            // let p2 = points[1]; // (x2, y2)
++            // let p3 = Point::new(p1.get_x(), p2.get_y()); //(x1, y2)
++            // let p4 = Point::new(p2.get_x(), p1.get_y()); //(x2, y1)
++
++            // let mut vertices = vec![];
++
++            // vertices.push(Pixel::new(p1, color));
++            // vertices.push(Pixel::new(p3, color));
++            // vertices.push(Pixel::new(p2, color));
++            // vertices.push(Pixel::new(p4, color));
++
+             let mut rect = Self {
+                 points,
+                 color,
+                 thickness,
++                vertices: vec![],
+                 state: vec![],
+             };
+             rect.calculate();
+@@ -178,6 +204,10 @@ pub mod shape2d {
+             self.thickness
+         }
+ 
++        pub fn get_vertices(&self) -> Vec<Pixel> {
++            self.vertices.clone()
++        }
++
+         pub fn set_color(&mut self, color: (u8, u8, u8, u8)) {
+             self.color = color;
+         }
+@@ -186,59 +216,91 @@ pub mod shape2d {
+             self.thickness = thickness;
+         }
+ 
+-        pub fn draw(&self, canvas: &mut canvas::Canvas) {
+-            for point in self.state.iter() {
+-                if (*point).0 >= 0.0 && (*point).1 >= 0.0 {
+-                    canvas.set_pixel_at((*point).0 as usize, (*point).1 as usize, self.color);
++        pub fn draw(&mut self, canvas: &mut canvas::Canvas) {
++            for pixel in self.state.iter_mut() {
++                let point = pixel.get_point();
++                let color = self.color;
++                pixel.set_color(self.color);
++                let x = point.get_x();
++                let y = point.get_y();
++                if x >= 0.0 && y >= 0.0 {
++                    canvas.set_pixel_at(x as usize, y as usize, color);
+                 }
+             }
+         }
+ 
+         fn calculate(&mut self) {
+             if self.points.len() == 2 {
+-                let x1 = self.points[0].0;
+-                let y1 = self.points[0].1;
+-                let x2 = self.points[1].0;
+-                let y2 = self.points[1].1;
++                let p1 = self.points[0]; // (x1, y1)
++                let p2 = self.points[1]; // (x2, y2)
++                let p3 = Point::new(p1.get_x(), p2.get_y()); //(x1, y2)
++                let p4 = Point::new(p2.get_x(), p1.get_y()); //(x2, y1)
+ 
+-                let line = Line::new(vec![(x1, y1), (x1, y2)], self.color, self.thickness);
+-                for point in line.state.iter() {
+-                    self.state.push(*point);
++                let line = Line::new(vec![p1, p3], self.color, self.thickness);
++                for pixel in line.state.iter() {
++                    self.state.push(*pixel);
+                 }
+-                let line = Line::new(vec![(x1, y2), (x2, y2)], self.color, self.thickness);
+-                for point in line.state.iter() {
+-                    self.state.push(*point);
++                let line = Line::new(vec![p3, p2], self.color, self.thickness);
++                for pixel in line.state.iter() {
++                    self.state.push(*pixel);
+                 }
+-                let line = Line::new(vec![(x2, y2), (x2, y1)], self.color, self.thickness);
+-                for point in line.state.iter() {
+-                    self.state.push(*point);
++                let line = Line::new(vec![p2, p4], self.color, self.thickness);
++                for pixel in line.state.iter() {
++                    self.state.push(*pixel);
+                 }
+-                let line = Line::new(vec![(x2, y1), (x1, y1)], self.color, self.thickness);
+-                for point in line.state.iter() {
+-                    self.state.push(*point);
++                let line = Line::new(vec![p4, p1], self.color, self.thickness);
++                for pixel in line.state.iter() {
++                    self.state.push(*pixel);
+                 }
++
++                self.vertices.clear();
++
++                self.vertices.push(Pixel::new(p1, self.color));
++                self.vertices.push(Pixel::new(p3, self.color));
++                self.vertices.push(Pixel::new(p2, self.color));
++                self.vertices.push(Pixel::new(p4, self.color));
+             }
+         }
+         pub fn transform(&mut self, operation: Transform) {
+             match operation {
+                 Transform::TRANSLATE(tx, ty) => {
+-                    for point in self.state.iter_mut() {
+-                        *point = transforms::translate((*point).0, (*point).1, tx, ty);
++                    for pixel in self.state.iter_mut() {
++                        let point = transforms::translate(&pixel.get_point(), tx, ty);
++                        *pixel = Pixel::new(point, self.color);
++                    }
++                    for i in 0..self.vertices.len() {
++                        let vpoint = transforms::translate(&self.vertices[i].get_point(), tx, ty);
++                        self.vertices[i].set_point(vpoint);
+                     }
+                 }
+-                Transform::ROTATE(x_pivot, y_pivot, angle) => {
+-                    for point in self.state.iter_mut() {
+-                        *point = transforms::rotate((*point).0, (*point).1, x_pivot, y_pivot, angle);
++                Transform::ROTATE(point_pivot, angle) => {
++                    for pixel in self.state.iter_mut() {
++                        let point = transforms::rotate(&pixel.get_point(), &point_pivot, angle);
++                        *pixel = Pixel::new(point, self.color);
++                    }
++                    for i in 0..self.vertices.len() {
++                        let vpoint = transforms::rotate(&self.vertices[i].get_point(), &point_pivot, angle);
++                        self.vertices[i].set_point(vpoint);
+                     }
+                 }
+-                Transform::ShearX(x_ref, y_ref, shx) => {
+-                    for point in self.state.iter_mut() {
+-                        *point = transforms::shear_x((*point).0, (*point).1, x_ref, y_ref, shx);
++                Transform::ShearX(point_ref, shx) => {
++                    for pixel in self.state.iter_mut() {
++                        let point = transforms::shear_x(&pixel.get_point(), &point_ref, shx);
++                        *pixel = Pixel::new(point, self.color);
++                    }
++                    for i in 0..self.vertices.len() {
++                        let vpoint = transforms::shear_x(&self.vertices[i].get_point(), &point_ref, shx);
++                        self.vertices[i].set_point(vpoint);
+                     }
+                 }
+-                Transform::ShearY(x_ref, y_ref, shy) => {
+-                    for point in self.state.iter_mut() {
+-                        *point = transforms::shear_y((*point).0, (*point).1, x_ref, y_ref, shy);
++                Transform::ShearY(point_ref, shy) => {
++                    for pixel in self.state.iter_mut() {
++                        let point = transforms::shear_y(&pixel.get_point(), &point_ref, shy);
++                        *pixel = Pixel::new(point, self.color);
++                    }
++                    for i in 0..self.vertices.len() {
++                        let vpoint = transforms::shear_y(&self.vertices[i].get_point(), &point_ref, shy);
++                        self.vertices[i].set_point(vpoint);
+                     }
+                 }
+             }
+@@ -246,30 +308,37 @@ pub mod shape2d {
+     }
+ 
+     pub struct Square {
+-        points: (f32, f32),
++        points: Point,
+         edge: f32,
+         color: (u8, u8, u8, u8),
+         thickness: u8,
+-        state: Vec<(f32, f32)>,
++        vertices: Vec<Pixel>,
++        state: Vec<Pixel>,
+     }
+ 
+     impl Square {
+-        pub fn new(points: (f32, f32), edge: f32, color: (u8, u8, u8, u8), thickness: u8) -> Self {
++        pub fn new(points: Point, edge: f32, color: (u8, u8, u8, u8), thickness: u8) -> Self {
+             let mut square = Self {
+                 points,
+                 edge,
+                 color,
+                 thickness,
+                 state: vec![],
++                vertices: vec![],
+             };
+             square.calculate();
+             square
+         }
+ 
+-        pub fn draw(&self, canvas: &mut canvas::Canvas) {
+-            for point in self.state.iter() {
+-                if (*point).0 >= 0.0 && (*point).1 >= 0.0 {
+-                    canvas.set_pixel_at((*point).0 as usize, (*point).1 as usize, self.color);
++        pub fn draw(&mut self, canvas: &mut canvas::Canvas) {
++            for pixel in self.state.iter_mut() {
++                let point = pixel.get_point();
++                let color = self.color;
++                pixel.set_color(self.color);
++                let x = point.get_x();
++                let y = point.get_y();
++                if x >= 0.0 && y >= 0.0 {
++                    canvas.set_pixel_at(x as usize, y as usize, color);
+                 }
+             }
+         }
+@@ -282,6 +351,10 @@ pub mod shape2d {
+             self.thickness
+         }
+ 
++        pub fn get_vertices(&self) -> Vec<Pixel> {
++            self.vertices.clone()
++        }
++
+         pub fn set_color(&mut self, color: (u8, u8, u8, u8)) {
+             self.color = color;
+         }
+@@ -291,36 +364,55 @@ pub mod shape2d {
+         }
+ 
+         fn calculate(&mut self) {
+-            let x1 = self.points.0;
+-            let y1 = self.points.1;
+-            let x2 = x1 + self.edge;
+-            let y2 = y1 + self.edge;
+-
+-            let rect = Rectangle::new([(x1, y1), (x2, y2)], self.color, self.thickness);
+-            for point in rect.state.iter() {
+-                self.state.push(*point);
++            let p1 = self.points;
++            let p2 = Point::new(p1.get_x() + self.edge, p1.get_y() + self.edge);
++
++            let rect = Rectangle::new([p1, p2], self.color, self.thickness);
++            for pixel in rect.state.iter() {
++                self.state.push(*pixel);
+             }
++            self.vertices = rect.get_vertices();
+         }
+         pub fn transform(&mut self, operation: Transform) {
+             match operation {
+                 Transform::TRANSLATE(tx, ty) => {
+-                    for point in self.state.iter_mut() {
+-                        *point = transforms::translate((*point).0, (*point).1, tx, ty);
++                    for pixel in self.state.iter_mut() {
++                        let point = transforms::translate(&pixel.get_point(), tx, ty);
++                        *pixel = Pixel::new(point, self.color);
++                    }
++                    for i in 0..self.vertices.len() {
++                        let vpoint = transforms::translate(&self.vertices[i].get_point(), tx, ty);
++                        self.vertices[i].set_point(vpoint);
+                     }
+                 }
+-                Transform::ROTATE(x_pivot, y_pivot, angle) => {
+-                    for point in self.state.iter_mut() {
+-                        *point = transforms::rotate((*point).0, (*point).1, x_pivot, y_pivot, angle);
++                Transform::ROTATE(point_pivot, angle) => {
++                    for pixel in self.state.iter_mut() {
++                        let point = transforms::rotate(&pixel.get_point(), &point_pivot, angle);
++                        *pixel = Pixel::new(point, self.color);
++                    }
++                    for i in 0..self.vertices.len() {
++                        let vpoint = transforms::rotate(&self.vertices[i].get_point(), &point_pivot, angle);
++                        self.vertices[i].set_point(vpoint);
+                     }
+                 }
+-                Transform::ShearX(x_ref, y_ref, shx) => {
+-                    for point in self.state.iter_mut() {
+-                        *point = transforms::shear_x((*point).0, (*point).1, x_ref, y_ref, shx);
++                Transform::ShearX(point_ref, shx) => {
++                    for pixel in self.state.iter_mut() {
++                        let point = transforms::shear_x(&pixel.get_point(), &point_ref, shx);
++                        *pixel = Pixel::new(point, self.color);
++                    }
++                    for i in 0..self.vertices.len() {
++                        let vpoint = transforms::shear_x(&self.vertices[i].get_point(), &point_ref, shx);
++                        self.vertices[i].set_point(vpoint);
+                     }
+                 }
+-                Transform::ShearY(x_ref, y_ref, shy) => {
+-                    for point in self.state.iter_mut() {
+-                        *point = transforms::shear_y((*point).0, (*point).1, x_ref, y_ref, shy);
++                Transform::ShearY(point_ref, shy) => {
++                    for pixel in self.state.iter_mut() {
++                        let point = transforms::shear_y(&pixel.get_point(), &point_ref, shy);
++                        *pixel = Pixel::new(point, self.color);
++                    }
++                    for i in 0..self.vertices.len() {
++                        let vpoint = transforms::shear_y(&self.vertices[i].get_point(), &point_ref, shy);
++                        self.vertices[i].set_point(vpoint);
+                     }
+                 }
+             }
+@@ -328,18 +420,24 @@ pub mod shape2d {
+     }
+ 
+     pub struct Polygon {
+-        points: Vec<(f32, f32)>,
++        points: Vec<Point>,
+         color: (u8, u8, u8, u8),
+         thickness: u8,
+-        state: Vec<(f32, f32)>,
++        vertices: Vec<Pixel>,
++        state: Vec<Pixel>,
+     }
+ 
+     impl Polygon {
+-        pub fn new(points: Vec<(f32, f32)>, color: (u8, u8, u8, u8), thickness: u8) -> Self {
++        pub fn new(points: Vec<Point>, color: (u8, u8, u8, u8), thickness: u8) -> Self {
++            let mut vertices: Vec<Pixel> = vec![];
++            for point in points.iter() {
++                vertices.push(Pixel::new(*point, color));
++            }
+             let mut poly = Self {
+                 points,
+                 color,
+                 thickness,
++                vertices,
+                 state: vec![],
+             };
+             poly.calculate();
+@@ -354,6 +452,10 @@ pub mod shape2d {
+             self.thickness
+         }
+ 
++        pub fn get_vertices(&self) -> Vec<Pixel> {
++            self.vertices.clone()
++        }
++
+         pub fn set_color(&mut self, color: (u8, u8, u8, u8)) {
+             self.color = color;
+         }
+@@ -362,10 +464,15 @@ pub mod shape2d {
+             self.thickness = thickness;
+         }
+ 
+-        pub fn draw(&self, canvas: &mut canvas::Canvas) {
+-            for point in self.state.iter() {
+-                if (*point).0 >= 0.0 && (*point).1 >= 0.0 {
+-                    canvas.set_pixel_at((*point).0 as usize, (*point).1 as usize, self.color);
++        pub fn draw(&mut self, canvas: &mut canvas::Canvas) {
++            for pixel in self.state.iter_mut() {
++                let point = pixel.get_point();
++                let color = self.color;
++                pixel.set_color(self.color);
++                let x = point.get_x();
++                let y = point.get_y();
++                if x >= 0.0 && y >= 0.0 {
++                    canvas.set_pixel_at(x as usize, y as usize, color);
+                 }
+             }
+         }
+@@ -374,30 +481,46 @@ pub mod shape2d {
+             let p_first = self.points[0];
+             self.points.push(p_first);
+             let line = Line::new(self.points.clone(), self.color, self.thickness);
+-            for point in line.state.iter() {
+-                self.state.push(*point);
++            for pixel in line.state.iter() {
++                self.state.push(*pixel);
+             }
+         }
+         pub fn transform(&mut self, operation: Transform) {
+             match operation {
+                 Transform::TRANSLATE(tx, ty) => {
+                     for point in self.points.iter_mut() {
+-                        *point = transforms::translate((*point).0, (*point).1, tx, ty);
++                        *point = transforms::translate(point, tx, ty);
++                    }
++                    for i in 0..self.vertices.len() {
++                        let vpoint = transforms::translate(&self.vertices[i].get_point(), tx, ty);
++                        self.vertices[i].set_point(vpoint);
+                     }
+                 }
+-                Transform::ROTATE(x_pivot, y_pivot, angle) => {
++                Transform::ROTATE(point_pivot, angle) => {
+                     for point in self.points.iter_mut() {
+-                        *point = transforms::rotate((*point).0, (*point).1, x_pivot, y_pivot, angle);
++                        *point = transforms::rotate(point, &point_pivot, angle);
++                    }
++                    for i in 0..self.vertices.len() {
++                        let vpoint = transforms::rotate(&self.vertices[i].get_point(), &point_pivot, angle);
++                        self.vertices[i].set_point(vpoint);
+                     }
+                 }
+-                Transform::ShearX(x_ref, y_ref, shx) => {
++                Transform::ShearX(point_ref, shx) => {
+                     for point in self.points.iter_mut() {
+-                        *point = transforms::shear_x((*point).0, (*point).1, x_ref, y_ref, shx);
++                        *point = transforms::shear_x(point, &point_ref, shx);
++                    }
++                    for i in 0..self.vertices.len() {
++                        let vpoint = transforms::shear_x(&self.vertices[i].get_point(), &point_ref, shx);
++                        self.vertices[i].set_point(vpoint);
+                     }
+                 }
+-                Transform::ShearY(x_ref, y_ref, shy) => {
++                Transform::ShearY(point_ref, shy) => {
+                     for point in self.points.iter_mut() {
+-                        *point = transforms::shear_y((*point).0, (*point).1, x_ref, y_ref, shy);
++                        *point = transforms::shear_y(point, &point_ref, shy);
++                    }
++                    for i in 0..self.vertices.len() {
++                        let vpoint = transforms::shear_y(&self.vertices[i].get_point(), &point_ref, shy);
++                        self.vertices[i].set_point(vpoint);
+                     }
+                 }
+             }
+@@ -407,15 +530,15 @@ pub mod shape2d {
+     }
+ 
+     pub struct Circle {
+-        point_center: (f32, f32),
++        point_center: Point,
+         radius: f32,
+         color: (u8, u8, u8, u8),
+         thickness: u8,
+-        state: Vec<(f32, f32)>,
++        state: Vec<Pixel>,
+     }
+ 
+     impl Circle {
+-        pub fn new(point_center: (f32, f32), radius: f32, color: (u8, u8, u8, u8), thickness: u8) -> Self {
++        pub fn new(point_center: Point, radius: f32, color: (u8, u8, u8, u8), thickness: u8) -> Self {
+             let mut circle = Self {
+                 point_center,
+                 radius,
+@@ -443,10 +566,15 @@ pub mod shape2d {
+             self.thickness = thickness;
+         }
+ 
+-        pub fn draw(&self, canvas: &mut canvas::Canvas) {
+-            for point in self.state.iter() {
+-                if (*point).0 >= 0.0 && (*point).1 >= 0.0 {
+-                    canvas.set_pixel_at((*point).0 as usize, (*point).1 as usize, self.color);
++        pub fn draw(&mut self, canvas: &mut canvas::Canvas) {
++            for pixel in self.state.iter_mut() {
++                let point = pixel.get_point();
++                let color = self.color;
++                pixel.set_color(self.color);
++                let x = point.get_x();
++                let y = point.get_y();
++                if x >= 0.0 && y >= 0.0 {
++                    canvas.set_pixel_at(x as usize, y as usize, color);
+                 }
+             }
+         }
+@@ -456,13 +584,19 @@ pub mod shape2d {
+             let mut x = radius;
+             let mut y = 0_isize;
+             let mut d = 1 - radius;
+-            let xc = self.point_center.0 as isize;
+-            let yc = self.point_center.1 as isize;
++            let xc = self.point_center.get_x() as isize;
++            let yc = self.point_center.get_y() as isize;
+ 
+             if radius > 0 {
+-                self.state.push(((x + xc) as f32, (-y + yc) as f32));
+-                self.state.push(((y + xc) as f32, (x + yc) as f32));
+-                self.state.push(((-y + xc) as f32, (x + yc) as f32));
++                let point = Point::new((x + xc) as f32, (-y + yc) as f32);
++                let pixel = Pixel::new(point, self.get_color());
++                self.state.push(pixel);
++                let point = Point::new((y + xc) as f32, (x + yc) as f32);
++                let pixel = Pixel::new(point, self.get_color());
++                self.state.push(pixel);
++                let point = Point::new((-y + xc) as f32, (x + yc) as f32);
++                let pixel = Pixel::new(point, self.get_color());
++                self.state.push(pixel);
+             }
+ 
+             while x > y {
+@@ -476,16 +610,38 @@ pub mod shape2d {
+                 if x < y {
+                     break;
+                 }
+-                self.state.push(((x + xc) as f32, (y + yc) as f32));
+-                self.state.push(((-x + xc) as f32, (y + yc) as f32));
+-                self.state.push(((x + xc) as f32, (-y + yc) as f32));
+-                self.state.push(((-x + xc) as f32, (-y + yc) as f32));
++                let point = Point::new((x + xc) as f32, (y + yc) as f32);
++                let pixel = Pixel::new(point, self.get_color());
++                self.state.push(pixel);
++
++                let point = Point::new((-x + xc) as f32, (y + yc) as f32);
++                let pixel = Pixel::new(point, self.get_color());
++                self.state.push(pixel);
++
++                let point = Point::new((x + xc) as f32, (-y + yc) as f32);
++                let pixel = Pixel::new(point, self.get_color());
++                self.state.push(pixel);
++
++                let point = Point::new((-x + xc) as f32, (-y + yc) as f32);
++                let pixel = Pixel::new(point, self.get_color());
++                self.state.push(pixel);
+ 
+                 if x != y {
+-                    self.state.push(((y + xc) as f32, (x + yc) as f32));
+-                    self.state.push(((-y + xc) as f32, (x + yc) as f32));
+-                    self.state.push(((y + xc) as f32, (-x + yc) as f32));
+-                    self.state.push(((-y + xc) as f32, (-x + yc) as f32));
++                    let point = Point::new((y + xc) as f32, (x + yc) as f32);
++                    let pixel = Pixel::new(point, self.get_color());
++                    self.state.push(pixel);
++
++                    let point = Point::new((-y + xc) as f32, (x + yc) as f32);
++                    let pixel = Pixel::new(point, self.get_color());
++                    self.state.push(pixel);
++
++                    let point = Point::new((y + xc) as f32, (-x + yc) as f32);
++                    let pixel = Pixel::new(point, self.get_color());
++                    self.state.push(pixel);
++
++                    let point = Point::new((-y + xc) as f32, (-x + yc) as f32);
++                    let pixel = Pixel::new(point, self.get_color());
++                    self.state.push(pixel);
+                 }
+             }
+         }
+@@ -493,29 +649,28 @@ pub mod shape2d {
+         pub fn transform(&mut self, operation: Transform) {
+             match operation {
+                 Transform::TRANSLATE(tx, ty) => {
+-                    self.point_center = transforms::translate(self.point_center.0, self.point_center.1, tx, ty);
++                    self.point_center = transforms::translate(&self.point_center, tx, ty);
+                     self.state.clear();
+                     self.calculate();
+                 }
+-                Transform::ROTATE(x_pivot, y_pivot, angle) => {
+-                    self.point_center =
+-                        transforms::rotate(self.point_center.0, self.point_center.1, x_pivot, y_pivot, angle);
++                Transform::ROTATE(point_pivot, angle) => {
++                    self.point_center = transforms::rotate(&self.point_center, &point_pivot, angle);
+                     self.state.clear();
+                     self.calculate();
+                 }
+-                Transform::ShearX(x_ref, y_ref, shx) => {
+-                    for point in self.state.iter_mut() {
+-                        *point = transforms::shear_x((*point).0, (*point).1, x_ref, y_ref, shx);
++                Transform::ShearX(point_ref, shx) => {
++                    for pixel in self.state.iter_mut() {
++                        let point = transforms::shear_x(&pixel.get_point(), &point_ref, shx);
++                        *pixel = Pixel::new(point, pixel.get_color());
+                     }
+-                    self.point_center =
+-                        transforms::shear_x(self.point_center.0, self.point_center.1, x_ref, y_ref, shx);
++                    self.point_center = transforms::shear_x(&self.point_center, &point_ref, shx);
+                 }
+-                Transform::ShearY(x_ref, y_ref, shy) => {
+-                    for point in self.state.iter_mut() {
+-                        *point = transforms::shear_y((*point).0, (*point).1, x_ref, y_ref, shy);
++                Transform::ShearY(point_ref, shy) => {
++                    for pixel in self.state.iter_mut() {
++                        let point = transforms::shear_y(&pixel.get_point(), &point_ref, shy);
++                        *pixel = Pixel::new(point, pixel.get_color());
+                     }
+-                    self.point_center =
+-                        transforms::shear_y(self.point_center.0, self.point_center.1, x_ref, y_ref, shy);
++                    self.point_center = transforms::shear_y(&self.point_center, &point_ref, shy);
+                 }
+             }
+         }
+@@ -524,29 +679,20 @@ pub mod shape2d {
+ 
+ pub mod curve {
+     use super::shape2d::Line;
+-    use crate::canvas;
+-    use crate::helpers::comb;
+-    use crate::helpers::linspace;
+-    use crate::transforms;
+-    use crate::Spline;
+-    use crate::Transform;
++    use crate::helpers::{comb, linspace};
++    use crate::{canvas, transforms};
++    use crate::{Pixel, Point, Spline, Transform};
+     pub struct Curve {
+-        points: Vec<(f32, f32)>,
++        points: Vec<Point>,
+         color: (u8, u8, u8, u8),
+         thickness: u8,
+         npoints: u32,
+         spline: Spline,
+-        state: Vec<(f32, f32)>,
++        state: Vec<Pixel>,
+     }
+ 
+     impl Curve {
+-        pub fn new(
+-            points: Vec<(f32, f32)>,
+-            color: (u8, u8, u8, u8),
+-            thickness: u8,
+-            npoints: u32,
+-            spline: Spline,
+-        ) -> Self {
++        pub fn new(points: Vec<Point>, color: (u8, u8, u8, u8), thickness: u8, npoints: u32, spline: Spline) -> Self {
+             let mut curve = Self {
+                 points,
+                 color,
+@@ -582,10 +728,10 @@ pub mod curve {
+             let mut curve = vec![];
+             for i in 0..(size - 3) {
+                 let mut c = self.catmull_rom_spline(
+-                    self.points[i],
+-                    self.points[i + 1],
+-                    self.points[i + 2],
+-                    self.points[i + 3],
++                    &self.points[i],
++                    &self.points[i + 1],
++                    &self.points[i + 2],
++                    &self.points[i + 3],
+                 );
+                 curve.append(&mut c);
+             }
+@@ -593,22 +739,14 @@ pub mod curve {
+         }
+ 
+         pub fn draw(&self, canvas: &mut canvas::Canvas) {
+-            let drawable = self.state.clone();
+-            let line = Line::new(drawable, self.color, self.thickness);
++            let points = self.state.iter().map(|pixel| pixel.get_point()).collect();
++            let mut line = Line::new(points, self.color, self.thickness);
+             line.draw(canvas);
+         }
+-        fn knot_j(&self, knot_i: f32, pi: (f32, f32), pj: (f32, f32), alpha: f32) -> f32 {
+-            let (xi, yi) = pi;
+-            let (xj, yj) = pj;
+-            ((xj - xi).powf(2.0) + (yj - yi).powf(2.0)).powf(alpha) + knot_i
+-        }
+-        fn catmull_rom_spline(
+-            &self,
+-            p0: (f32, f32),
+-            p1: (f32, f32),
+-            p2: (f32, f32),
+-            p3: (f32, f32),
+-        ) -> Vec<(f32, f32)> {
++        fn knot_j(&self, knot_i: f32, pi: &Point, pj: &Point, alpha: f32) -> f32 {
++            ((pj.get_x() - pi.get_x()).powf(2.0) + (pj.get_y() - pi.get_y()).powf(2.0)).powf(alpha) + knot_i
++        }
++        fn catmull_rom_spline(&self, p0: &Point, p1: &Point, p2: &Point, p3: &Point) -> Vec<Pixel> {
+             let mut alpha = match self.spline {
+                 Spline::UNIFORM => 0.0,
+                 Spline::CENTRIPETAL => 0.5,
+@@ -622,6 +760,11 @@ pub mod curve {
+             let t2 = self.knot_j(t1, p1, p2, alpha);
+             let t3 = self.knot_j(t2, p2, p3, alpha);
+ 
++            let p0 = (p0.get_x(), p0.get_y());
++            let p1 = (p1.get_x(), p1.get_y());
++            let p2 = (p2.get_x(), p2.get_y());
++            let p3 = (p3.get_x(), p3.get_y());
++
+             let t_lin = linspace(t1, t2, self.npoints);
+             let mut c = vec![];
+ 
+@@ -652,7 +795,9 @@ pub mod curve {
+                 let cc1 = ca21;
+ 
+                 let val = (cc0 * b1.0 + cc1 * b2.0, cc0 * b1.1 + cc1 * b2.1);
+-                c.push(val);
++                let point = Point::from(val);
++                let pixel = Pixel::new(point, self.color);
++                c.push(pixel);
+             }
+             c
+         }
+@@ -661,22 +806,22 @@ pub mod curve {
+             match operation {
+                 Transform::TRANSLATE(tx, ty) => {
+                     for point in self.points.iter_mut() {
+-                        *point = transforms::translate((*point).0, (*point).1, tx, ty);
++                        *point = transforms::translate(point, tx, ty);
+                     }
+                 }
+-                Transform::ROTATE(x_pivot, y_pivot, angle) => {
++                Transform::ROTATE(point_pivot, angle) => {
+                     for point in self.points.iter_mut() {
+-                        *point = transforms::rotate((*point).0, (*point).1, x_pivot, y_pivot, angle);
++                        *point = transforms::rotate(point, &point_pivot, angle);
+                     }
+                 }
+-                Transform::ShearX(x_ref, y_ref, shx) => {
++                Transform::ShearX(point_ref, shx) => {
+                     for point in self.points.iter_mut() {
+-                        *point = transforms::shear_x((*point).0, (*point).1, x_ref, y_ref, shx);
++                        *point = transforms::shear_x(point, &point_ref, shx);
+                     }
+                 }
+-                Transform::ShearY(x_ref, y_ref, shy) => {
++                Transform::ShearY(point_ref, shy) => {
+                     for point in self.points.iter_mut() {
+-                        *point = transforms::shear_y((*point).0, (*point).1, x_ref, y_ref, shy);
++                        *point = transforms::shear_y(point, &point_ref, shy);
+                     }
+                 }
+             }
+@@ -687,15 +832,15 @@ pub mod curve {
+ 
+     pub struct Bezier {
+         npoints: u32,
+-        control_points: Vec<(f32, f32)>,
++        control_points: Vec<Point>,
+         degree: usize,
+         color: (u8, u8, u8, u8),
+         thickness: u8,
+-        state: Vec<(f32, f32)>,
++        state: Vec<Pixel>,
+     }
+ 
+     impl Bezier {
+-        pub fn new(npoints: u32, control_points: Vec<(f32, f32)>, color: (u8, u8, u8, u8), thickness: u8) -> Self {
++        pub fn new(npoints: u32, control_points: Vec<Point>, color: (u8, u8, u8, u8), thickness: u8) -> Self {
+             let degree = control_points.len() - 1;
+             let mut bezier = Self {
+                 npoints,
+@@ -735,18 +880,21 @@ pub mod curve {
+             for t in t_lin.iter() {
+                 let mut p = (0.0, 0.0);
+                 for (i, point) in self.control_points.iter().enumerate() {
+-                    let (x, y) = *point;
++                    let x = point.get_x();
++                    let y = point.get_y();
+                     let j = self.blend(i, *t);
+                     p.0 += x * j;
+                     p.1 += y * j;
+                 }
+-                self.state.push(p);
++                let point = Point::from(p);
++                let pixel = Pixel::new(point, self.color);
++                self.state.push(pixel);
+             }
+         }
+ 
+         pub fn draw(&self, canvas: &mut canvas::Canvas) {
+-            let drawable = self.state.clone();
+-            let line = Line::new(drawable, self.color, self.thickness);
++            let points = self.state.iter().map(|pixel| pixel.get_point()).collect();
++            let mut line = Line::new(points, self.color, self.thickness);
+             line.draw(canvas);
+         }
+ 
+@@ -754,26 +902,28 @@ pub mod curve {
+             match operation {
+                 Transform::TRANSLATE(tx, ty) => {
+                     for point in self.control_points.iter_mut() {
+-                        *point = transforms::translate((*point).0, (*point).1, tx, ty);
++                        *point = transforms::translate(point, tx, ty);
+                     }
+                     self.state.clear();
+                     self.calculate();
+                 }
+-                Transform::ROTATE(x_pivot, y_pivot, angle) => {
++                Transform::ROTATE(point_pivot, angle) => {
+                     for point in self.control_points.iter_mut() {
+-                        *point = transforms::rotate((*point).0, (*point).1, x_pivot, y_pivot, angle);
++                        *point = transforms::rotate(point, &point_pivot, angle);
+                     }
+                     self.state.clear();
+                     self.calculate();
+                 }
+-                Transform::ShearX(x_ref, y_ref, shx) => {
+-                    for point in self.state.iter_mut() {
+-                        *point = transforms::shear_x((*point).0, (*point).1, x_ref, y_ref, shx);
++                Transform::ShearX(point_ref, shx) => {
++                    for pixel in self.state.iter_mut() {
++                        let point = transforms::shear_x(&pixel.get_point(), &point_ref, shx);
++                        *pixel = Pixel::new(point, self.color);
+                     }
+                 }
+-                Transform::ShearY(x_ref, y_ref, shy) => {
+-                    for point in self.state.iter_mut() {
+-                        *point = transforms::shear_y((*point).0, (*point).1, x_ref, y_ref, shy);
++                Transform::ShearY(point_ref, shy) => {
++                    for pixel in self.state.iter_mut() {
++                        let point = transforms::shear_y(&pixel.get_point(), &point_ref, shy);
++                        *pixel = Pixel::new(point, self.color);
+                     }
+                 }
+             }
+diff --git a/src/shape_aa.rs b/src/shape_aa.rs
+index e8ba679..0173f62 100644
+--- a/src/shape_aa.rs
++++ b/src/shape_aa.rs
+@@ -1,21 +1,26 @@
+ pub mod shape2d {
+-    use crate::canvas;
+-    use crate::transforms;
+-    use crate::Transform;
+-    use std::mem::swap;
++    use crate::{canvas, transforms};
++    use crate::{Pixel, Point, Transform};
++    use std::{mem::swap, vec};
+     pub struct Line {
+-        points: Vec<(f32, f32)>,
++        points: Vec<Point>,
+         color: (u8, u8, u8, u8),
+         thickness: u8,
+-        state: Vec<(f32, f32, (u8, u8, u8, u8))>,
++        end_points: Vec<Pixel>,
++        state: Vec<Pixel>,
+     }
+ 
+     impl Line {
+-        pub fn new(points: Vec<(f32, f32)>, color: (u8, u8, u8, u8), thickness: u8, canvas: &canvas::Canvas) -> Self {
++        pub fn new(points: Vec<Point>, color: (u8, u8, u8, u8), thickness: u8, canvas: &canvas::Canvas) -> Self {
++            let mut end_points: Vec<Pixel> = vec![];
++            for point in points.iter() {
++                end_points.push(Pixel::new(*point, color));
++            }
+             let mut line = Self {
+                 points,
+                 color,
+                 thickness,
++                end_points,
+                 state: vec![],
+             };
+             line.calculate(canvas);
+@@ -30,6 +35,10 @@ pub mod shape2d {
+             self.thickness
+         }
+ 
++        pub fn get_end_point(&self) -> Vec<Pixel> {
++            self.end_points.clone()
++        }
++
+         pub fn set_color(&mut self, color: (u8, u8, u8, u8)) {
+             self.color = color;
+         }
+@@ -38,10 +47,16 @@ pub mod shape2d {
+             self.thickness = thickness;
+         }
+ 
+-        pub fn draw(&self, canvas: &mut canvas::Canvas) {
+-            for point in self.state.iter() {
+-                if (*point).0 >= 0.0 && (*point).1 >= 0.0 {
+-                    canvas.set_pixel_at((*point).0 as usize, (*point).1 as usize, (*point).2);
++        pub fn draw(&mut self, canvas: &mut canvas::Canvas) {
++            self.calculate(canvas);
++            for pixel in self.state.iter() {
++                let point = pixel.get_point();
++                let color = pixel.get_color();
++
++                let x = point.get_x();
++                let y = point.get_y();
++                if x >= 0.0 && y >= 0.0 {
++                    canvas.set_pixel_at(x as usize, y as usize, color);
+                 }
+             }
+         }
+@@ -61,7 +76,7 @@ pub mod shape2d {
+ 
+         fn build_state(&mut self, x: isize, y: isize, c: f32, canvas: &canvas::Canvas) {
+             let (r_bkg, g_bkg, b_bkg, _a_bkg) = match canvas.get_pixel_at(x as usize, y as usize) {
+-                Some((r, g, b, a)) => (r, g, b, a),
++                Some(pixel) => pixel.get_color(),
+                 None => return,
+             };
+ 
+@@ -70,21 +85,23 @@ pub mod shape2d {
+             let b = (self.color.2 as f32 * c + (1.0 - c) * b_bkg as f32) as u8;
+             let a = self.color.3;
+ 
+-            self.state.push((x as f32, y as f32, (r, g, b, a)));
++            let point = Point::new(x as f32, y as f32);
++            let color = (r, g, b, a);
++            let pixel = Pixel::new(point, color);
++            self.state.push(pixel);
+         }
+ 
+         fn calculate(&mut self, canvas: &canvas::Canvas) {
+             if !self.points.is_empty() {
+                 if self.points.len() == 1 {
+-                    let x = self.points[0].0;
+-                    let y = self.points[0].1;
+-                    self.state.push((x, y, self.color));
++                    self.state.push(Pixel::new(self.points[0].clone(), self.color));
+                 } else {
+                     for i in 0..(self.points.len() - 1) {
+-                        let x1 = self.points[i].0;
+-                        let y1 = self.points[i].1;
+-                        let x2 = self.points[i + 1].0;
+-                        let y2 = self.points[i + 1].1;
++                        let x1 = self.points[i].get_x();
++                        let y1 = self.points[i].get_y();
++
++                        let x2 = self.points[i + 1].get_x();
++                        let y2 = self.points[i + 1].get_y();
+ 
+                         if x1 == x2 {
+                             let x1 = x1 as isize;
+@@ -96,7 +113,9 @@ pub mod shape2d {
+                                 y_end = y1 as isize;
+                             }
+                             while y_start <= y_end {
+-                                self.state.push((x1 as f32, y_start as f32, self.color));
++                                let point = Point::new(x1 as f32, y_start as f32);
++                                let pixel = Pixel::new(point, self.color);
++                                self.state.push(pixel);
+                                 y_start += 1;
+                             }
+                         } else if y1 == y2 {
+@@ -110,7 +129,9 @@ pub mod shape2d {
+                                 x_end = x1;
+                             }
+                             while x_start <= x_end {
+-                                self.state.push((x_start as f32, y1 as f32, self.color));
++                                let point = Point::new(x_start as f32, y1 as f32);
++                                let pixel = Pixel::new(point, self.color);
++                                self.state.push(pixel);
+                                 x_start += 1;
+                             }
+                         } else {
+@@ -204,22 +225,38 @@ pub mod shape2d {
+             match operation {
+                 Transform::TRANSLATE(tx, ty) => {
+                     for point in self.points.iter_mut() {
+-                        *point = transforms::translate((*point).0, (*point).1, tx, ty);
++                        *point = transforms::translate(point, tx, ty);
++                    }
++                    for i in 0..self.end_points.len() {
++                        let epoint = transforms::translate(&self.end_points[i].get_point(), tx, ty);
++                        self.end_points[i].set_point(epoint);
+                     }
+                 }
+-                Transform::ROTATE(x_pivot, y_pivot, angle) => {
++                Transform::ROTATE(point_pivot, angle) => {
+                     for point in self.points.iter_mut() {
+-                        *point = transforms::rotate((*point).0, (*point).1, x_pivot, y_pivot, angle);
++                        *point = transforms::rotate(point, &point_pivot, angle);
++                    }
++                    for i in 0..self.end_points.len() {
++                        let epoint = transforms::rotate(&self.end_points[i].get_point(), &point_pivot, angle);
++                        self.end_points[i].set_point(epoint);
+                     }
+                 }
+-                Transform::ShearX(x_ref, y_ref, shx) => {
++                Transform::ShearX(point_ref, shx) => {
+                     for point in self.points.iter_mut() {
+-                        *point = transforms::shear_x((*point).0, (*point).1, x_ref, y_ref, shx);
++                        *point = transforms::shear_x(point, &point_ref, shx);
++                    }
++                    for i in 0..self.end_points.len() {
++                        let epoint = transforms::shear_x(&self.end_points[i].get_point(), &point_ref, shx);
++                        self.end_points[i].set_point(epoint);
+                     }
+                 }
+-                Transform::ShearY(x_ref, y_ref, shy) => {
++                Transform::ShearY(point_ref, shy) => {
+                     for point in self.points.iter_mut() {
+-                        *point = transforms::shear_y((*point).0, (*point).1, x_ref, y_ref, shy);
++                        *point = transforms::shear_y(point, &point_ref, shy);
++                    }
++                    for i in 0..self.end_points.len() {
++                        let epoint = transforms::shear_y(&self.end_points[i].get_point(), &point_ref, shy);
++                        self.end_points[i].set_point(epoint);
+                     }
+                 }
+             }
+@@ -228,20 +265,25 @@ pub mod shape2d {
+         }
+     }
+     pub struct Rectangle {
+-        points: [(f32, f32); 2],
+-        vertices: Vec<(f32, f32)>,
++        points: [Point; 2],
++        vertices: Vec<Pixel>,
+         color: (u8, u8, u8, u8),
+         thickness: u8,
+-        state: Vec<(f32, f32, (u8, u8, u8, u8))>,
++        state: Vec<Pixel>,
+     }
+ 
+     impl Rectangle {
+-        pub fn new(points: [(f32, f32); 2], color: (u8, u8, u8, u8), thickness: u8, canvas: &canvas::Canvas) -> Self {
+-            let x1 = points[0].0;
+-            let y1 = points[0].1;
+-            let x2 = points[1].0;
+-            let y2 = points[1].1;
+-            let vertices = vec![(x1, y1), (x1, y2), (x2, y2), (x2, y1)];
++        pub fn new(points: [Point; 2], color: (u8, u8, u8, u8), thickness: u8, canvas: &canvas::Canvas) -> Self {
++            let x1 = points[0].get_x();
++            let y1 = points[0].get_y();
++            let x2 = points[1].get_x();
++            let y2 = points[1].get_y();
++            let vertices = vec![
++                Pixel::new(Point::new(x1, y1), color),
++                Pixel::new(Point::new(x1, y2), color),
++                Pixel::new(Point::new(x2, y2), color),
++                Pixel::new(Point::new(x2, y1), color),
++            ];
+             let mut rect = Self {
+                 points,
+                 vertices,
+@@ -269,90 +311,119 @@ pub mod shape2d {
+             self.thickness = thickness;
+         }
+ 
+-        fn get_vertices(&self) -> Vec<(f32, f32)> {
+-            self.vertices.clone()
++        pub fn set_points(&mut self, points: [Point; 2]) {
++            self.points = points;
+         }
+ 
+-        fn set_vertices(&mut self, vertices: Vec<(f32, f32)>) {
+-            self.vertices = vertices;
++        pub fn get_points(&self) -> [Point; 2] {
++            self.points.clone()
+         }
+ 
+-        pub fn draw(&self, canvas: &mut canvas::Canvas) {
+-            for point in self.state.iter() {
+-                if (*point).0 >= 0.0 && (*point).1 >= 0.0 {
+-                    canvas.set_pixel_at((*point).0 as usize, (*point).1 as usize, (*point).2);
++        pub fn get_vertices(&self) -> Vec<Pixel> {
++            self.vertices.clone()
++        }
++
++        pub fn draw(&mut self, canvas: &mut canvas::Canvas) {
++            self.calculate(canvas);
++            for pixel in self.state.iter() {
++                let point = pixel.get_point();
++                let color = pixel.get_color();
++
++                let x = point.get_x();
++                let y = point.get_y();
++                if x >= 0.0 && y >= 0.0 {
++                    canvas.set_pixel_at(x as usize, y as usize, color);
+                 }
+             }
+         }
+ 
+         fn calculate(&mut self, canvas: &canvas::Canvas) {
+             if self.points.len() == 2 {
+-                let x1 = self.points[0].0;
+-                let y1 = self.points[0].1;
+-                let x2 = self.points[1].0;
+-                let y2 = self.points[1].1;
+-
+-                let line = Line::new(vec![(x1, y1), (x1, y2)], self.color, self.thickness, canvas);
+-                for point in line.state.iter() {
+-                    self.state.push(*point);
++                let p1 = self.vertices[0].get_point();
++                let p2 = self.vertices[2].get_point();
++                let p3 = self.vertices[1].get_point();
++                let p4 = self.vertices[3].get_point();
++
++                let line = Line::new(vec![p1, p3], self.color, self.thickness, canvas);
++                for pixel in line.state.iter() {
++                    self.state.push(*pixel);
+                 }
+-                let line = Line::new(vec![(x1, y2), (x2, y2)], self.color, self.thickness, canvas);
+-                for point in line.state.iter() {
+-                    self.state.push(*point);
++                self.vertices[0] = line.get_end_point()[0];
++                self.vertices[1] = line.get_end_point()[1];
++                let line = Line::new(vec![p3, p2], self.color, self.thickness, canvas);
++                for pixel in line.state.iter() {
++                    self.state.push(*pixel);
+                 }
+-                let line = Line::new(vec![(x2, y2), (x2, y1)], self.color, self.thickness, canvas);
+-                for point in line.state.iter() {
+-                    self.state.push(*point);
++                let line = Line::new(vec![p2, p4], self.color, self.thickness, canvas);
++                for pixel in line.state.iter() {
++                    self.state.push(*pixel);
+                 }
+-                let line = Line::new(vec![(x2, y1), (x1, y1)], self.color, self.thickness, canvas);
+-                for point in line.state.iter() {
+-                    self.state.push(*point);
++                self.vertices[2] = line.get_end_point()[0];
++                self.vertices[3] = line.get_end_point()[1];
++                let line = Line::new(vec![p4, p1], self.color, self.thickness, canvas);
++                for pixel in line.state.iter() {
++                    self.state.push(*pixel);
+                 }
+             }
+         }
+         pub fn transform(&mut self, operation: Transform, canvas: &canvas::Canvas) {
+             match operation {
+                 Transform::TRANSLATE(tx, ty) => {
+-                    for point in self.state.iter_mut() {
+-                        let (x, y) = transforms::translate((*point).0, (*point).1, tx, ty);
+-                        *point = (x, y, (*point).2);
++                    for pixel in self.state.iter_mut() {
++                        let point = transforms::translate(&pixel.get_point(), tx, ty);
++                        *pixel = Pixel::new(point, pixel.get_color());
++                    }
++                    for i in 0..self.vertices.len() {
++                        let vpoint = transforms::translate(&self.vertices[i].get_point(), tx, ty);
++                        self.vertices[i].set_point(vpoint);
+                     }
+                 }
+-                Transform::ROTATE(x_pivot, y_pivot, angle) => {
+-                    let mut points = self.get_vertices();
+-                    for point in points.iter_mut() {
+-                        *point = transforms::rotate((*point).0, (*point).1, x_pivot, y_pivot, angle);
++                Transform::ROTATE(point_pivot, angle) => {
++                    let mut points = vec![];
++                    for pixel in self.vertices.iter_mut() {
++                        let point = transforms::rotate(&pixel.get_point(), &point_pivot, angle);
++                        points.push(point.clone());
++                        pixel.set_point(point);
+                     }
+-                    self.set_vertices(points.clone());
++                    // let end_points = [points[0], points[2]];
++                    // self.set_points(end_points);
+                     self.state.clear();
+ 
+                     let line = Line::new(vec![points[0], points[1]], self.color, self.thickness, canvas);
+-                    for point in line.state.iter() {
+-                        self.state.push(*point);
++                    for pixel in line.state.iter() {
++                        self.state.push(*pixel);
+                     }
+                     let line = Line::new(vec![points[1], points[2]], self.color, self.thickness, canvas);
+-                    for point in line.state.iter() {
+-                        self.state.push(*point);
++                    for pixel in line.state.iter() {
++                        self.state.push(*pixel);
+                     }
+                     let line = Line::new(vec![points[2], points[3]], self.color, self.thickness, canvas);
+-                    for point in line.state.iter() {
+-                        self.state.push(*point);
++                    for pixel in line.state.iter() {
++                        self.state.push(*pixel);
+                     }
+                     let line = Line::new(vec![points[3], points[0]], self.color, self.thickness, canvas);
+-                    for point in line.state.iter() {
+-                        self.state.push(*point);
++                    for pixel in line.state.iter() {
++                        self.state.push(*pixel);
+                     }
+                 }
+-                Transform::ShearX(x_ref, y_ref, shx) => {
+-                    for point in self.state.iter_mut() {
+-                        let (x, y) = transforms::shear_x((*point).0, (*point).1, x_ref, y_ref, shx);
+-                        *point = (x, y, (*point).2);
++                Transform::ShearX(point_ref, shx) => {
++                    for pixel in self.state.iter_mut() {
++                        let point = transforms::shear_x(&pixel.get_point(), &point_ref, shx);
++                        *pixel = Pixel::new(point, pixel.get_color());
++                    }
++                    for i in 0..self.vertices.len() {
++                        let vpoint = transforms::shear_x(&self.vertices[i].get_point(), &point_ref, shx);
++                        self.vertices[i].set_point(vpoint);
+                     }
+                 }
+-                Transform::ShearY(x_ref, y_ref, shy) => {
+-                    for point in self.state.iter_mut() {
+-                        let (x, y) = transforms::shear_y((*point).0, (*point).1, x_ref, y_ref, shy);
+-                        *point = (x, y, (*point).2);
++                Transform::ShearY(point_ref, shy) => {
++                    for pixel in self.state.iter_mut() {
++                        let point = transforms::shear_y(&pixel.get_point(), &point_ref, shy);
++                        *pixel = Pixel::new(point, pixel.get_color());
++                    }
++                    for i in 0..self.vertices.len() {
++                        let vpoint = transforms::shear_y(&self.vertices[i].get_point(), &point_ref, shy);
++                        self.vertices[i].set_point(vpoint);
+                     }
+                 }
+             }
+@@ -360,27 +431,26 @@ pub mod shape2d {
+     }
+ 
+     pub struct Square {
+-        points: (f32, f32),
++        points: Point,
+         edge: f32,
+-        vertices: Vec<(f32, f32)>,
++        vertices: Vec<Pixel>,
+         color: (u8, u8, u8, u8),
+         thickness: u8,
+-        state: Vec<(f32, f32, (u8, u8, u8, u8))>,
++        state: Vec<Pixel>,
+     }
+ 
+     impl Square {
+-        pub fn new(
+-            points: (f32, f32),
+-            edge: f32,
+-            color: (u8, u8, u8, u8),
+-            thickness: u8,
+-            canvas: &canvas::Canvas,
+-        ) -> Self {
+-            let x1 = points.0;
+-            let y1 = points.1;
++        pub fn new(points: Point, edge: f32, color: (u8, u8, u8, u8), thickness: u8, canvas: &canvas::Canvas) -> Self {
++            let x1 = points.get_x();
++            let y1 = points.get_y();
+             let x2 = x1 + edge;
+             let y2 = y1 + edge;
+-            let vertices = vec![(x1, y1), (x1, y2), (x2, y2), (x2, y1)];
++            let vertices = vec![
++                Pixel::new(Point::new(x1, y1), color),
++                Pixel::new(Point::new(x1, y2), color),
++                Pixel::new(Point::new(x2, y2), color),
++                Pixel::new(Point::new(x2, y1), color),
++            ];
+             let mut square = Self {
+                 points,
+                 edge,
+@@ -393,10 +463,15 @@ pub mod shape2d {
+             square
+         }
+ 
+-        pub fn draw(&self, canvas: &mut canvas::Canvas) {
+-            for point in self.state.iter() {
+-                if (*point).0 >= 0.0 && (*point).1 >= 0.0 {
+-                    canvas.set_pixel_at((*point).0 as usize, (*point).1 as usize, (*point).2);
++        pub fn draw(&mut self, canvas: &mut canvas::Canvas) {
++            self.calculate(canvas);
++            for pixel in self.state.iter() {
++                let point = pixel.get_point();
++                let color = pixel.get_color();
++                let x = point.get_x();
++                let y = point.get_y();
++                if x >= 0.0 && y >= 0.0 {
++                    canvas.set_pixel_at(x as usize, y as usize, color);
+                 }
+             }
+         }
+@@ -417,68 +492,86 @@ pub mod shape2d {
+             self.thickness = thickness;
+         }
+ 
+-        fn set_vertices(&mut self, vertices: Vec<(f32, f32)>) {
++        pub fn set_vertices(&mut self, vertices: Vec<Pixel>) {
+             self.vertices = vertices;
+         }
+ 
+-        fn get_vertices(&self) -> Vec<(f32, f32)> {
++        pub fn get_vertices(&self) -> Vec<Pixel> {
+             self.vertices.clone()
+         }
+ 
+         fn calculate(&mut self, canvas: &canvas::Canvas) {
+-            let x1 = self.points.0;
+-            let y1 = self.points.1;
++            let x1 = self.points.get_x();
++            let y1 = self.points.get_y();
+             let x2 = x1 + self.edge;
+             let y2 = y1 + self.edge;
+ 
+-            let rect = Rectangle::new([(x1, y1), (x2, y2)], self.color, self.thickness, canvas);
+-            for point in rect.state.iter() {
+-                self.state.push(*point);
++            let rect = Rectangle::new(
++                [Point::new(x1, y1), Point::new(x2, y2)],
++                self.color,
++                self.thickness,
++                canvas,
++            );
++            for pixel in rect.state.iter() {
++                self.state.push(*pixel);
+             }
+         }
+         pub fn transform(&mut self, operation: Transform, canvas: &canvas::Canvas) {
+             match operation {
+                 Transform::TRANSLATE(tx, ty) => {
+-                    for point in self.state.iter_mut() {
+-                        let (x, y) = transforms::translate((*point).0, (*point).1, tx, ty);
+-                        *point = (x, y, (*point).2);
++                    for pixel in self.state.iter_mut() {
++                        let point = transforms::translate(&pixel.get_point(), tx, ty);
++                        *pixel = Pixel::new(point, pixel.get_color());
++                    }
++                    for i in 0..self.vertices.len() {
++                        let vpoint = transforms::translate(&self.vertices[i].get_point(), tx, ty);
++                        self.vertices[i].set_point(vpoint);
+                     }
+                 }
+-                Transform::ROTATE(x_pivot, y_pivot, angle) => {
+-                    let mut points = self.get_vertices();
+-                    for point in points.iter_mut() {
+-                        *point = transforms::rotate((*point).0, (*point).1, x_pivot, y_pivot, angle);
++                Transform::ROTATE(point_pivot, angle) => {
++                    let mut points: Vec<Point> = vec![];
++                    for pixel in self.vertices.iter_mut() {
++                        let new_point = transforms::rotate(&pixel.get_point(), &point_pivot, angle);
++                        points.push(new_point);
++                        pixel.set_point(new_point);
+                     }
+-                    self.set_vertices(points.clone());
+                     self.state.clear();
+ 
+                     let line = Line::new(vec![points[0], points[1]], self.color, self.thickness, canvas);
+-                    for point in line.state.iter() {
+-                        self.state.push(*point);
++                    for pixel in line.state.iter() {
++                        self.state.push(*pixel);
+                     }
+                     let line = Line::new(vec![points[1], points[2]], self.color, self.thickness, canvas);
+-                    for point in line.state.iter() {
+-                        self.state.push(*point);
++                    for pixel in line.state.iter() {
++                        self.state.push(*pixel);
+                     }
+                     let line = Line::new(vec![points[2], points[3]], self.color, self.thickness, canvas);
+-                    for point in line.state.iter() {
+-                        self.state.push(*point);
++                    for pixel in line.state.iter() {
++                        self.state.push(*pixel);
+                     }
+                     let line = Line::new(vec![points[3], points[0]], self.color, self.thickness, canvas);
+-                    for point in line.state.iter() {
+-                        self.state.push(*point);
++                    for pixel in line.state.iter() {
++                        self.state.push(*pixel);
+                     }
+                 }
+-                Transform::ShearX(x_ref, y_ref, shx) => {
+-                    for point in self.state.iter_mut() {
+-                        let (x, y) = transforms::shear_x((*point).0, (*point).1, x_ref, y_ref, shx);
+-                        *point = (x, y, (*point).2);
++                Transform::ShearX(point_ref, shx) => {
++                    for pixel in self.state.iter_mut() {
++                        let point = transforms::shear_x(&pixel.get_point(), &point_ref, shx);
++                        *pixel = Pixel::new(point, pixel.get_color());
++                    }
++                    for i in 0..self.vertices.len() {
++                        let vpoint = transforms::shear_x(&self.vertices[i].get_point(), &point_ref, shx);
++                        self.vertices[i].set_point(vpoint);
+                     }
+                 }
+-                Transform::ShearY(x_ref, y_ref, shy) => {
+-                    for point in self.state.iter_mut() {
+-                        let (x, y) = transforms::shear_y((*point).0, (*point).1, x_ref, y_ref, shy);
+-                        *point = (x, y, (*point).2);
++                Transform::ShearY(point_ref, shy) => {
++                    for pixel in self.state.iter_mut() {
++                        let point = transforms::shear_y(&pixel.get_point(), &point_ref, shy);
++                        *pixel = Pixel::new(point, pixel.get_color());
++                    }
++                    for i in 0..self.vertices.len() {
++                        let vpoint = transforms::shear_y(&self.vertices[i].get_point(), &point_ref, shy);
++                        self.vertices[i].set_point(vpoint);
+                     }
+                 }
+             }
+@@ -486,18 +579,24 @@ pub mod shape2d {
+     }
+ 
+     pub struct Polygon {
+-        points: Vec<(f32, f32)>,
++        points: Vec<Point>,
+         color: (u8, u8, u8, u8),
+         thickness: u8,
+-        state: Vec<(f32, f32, (u8, u8, u8, u8))>,
++        vertices: Vec<Pixel>,
++        state: Vec<Pixel>,
+     }
+ 
+     impl Polygon {
+-        pub fn new(points: Vec<(f32, f32)>, color: (u8, u8, u8, u8), thickness: u8, canvas: &canvas::Canvas) -> Self {
++        pub fn new(points: Vec<Point>, color: (u8, u8, u8, u8), thickness: u8, canvas: &canvas::Canvas) -> Self {
++            let mut vertices: Vec<Pixel> = vec![];
++            for point in points.iter() {
++                vertices.push(Pixel::new(*point, color));
++            }
+             let mut poly = Self {
+                 points,
+                 color,
+                 thickness,
++                vertices,
+                 state: vec![],
+             };
+             poly.calculate(canvas);
+@@ -512,6 +611,10 @@ pub mod shape2d {
+             self.thickness
+         }
+ 
++        pub fn get_vertices(&self) -> Vec<Pixel> {
++            self.vertices.clone()
++        }
++
+         pub fn set_color(&mut self, color: (u8, u8, u8, u8)) {
+             self.color = color;
+         }
+@@ -520,10 +623,15 @@ pub mod shape2d {
+             self.thickness = thickness;
+         }
+ 
+-        pub fn draw(&self, canvas: &mut canvas::Canvas) {
+-            for point in self.state.iter() {
+-                if (*point).0 >= 0.0 && (*point).1 >= 0.0 {
+-                    canvas.set_pixel_at((*point).0 as usize, (*point).1 as usize, (*point).2);
++        pub fn draw(&mut self, canvas: &mut canvas::Canvas) {
++            self.calculate(canvas);
++            for pixel in self.state.iter() {
++                let point = pixel.get_point();
++                let color = pixel.get_color();
++                let x = point.get_x();
++                let y = point.get_y();
++                if x >= 0.0 && y >= 0.0 {
++                    canvas.set_pixel_at(x as usize, y as usize, color);
+                 }
+             }
+         }
+@@ -540,22 +648,38 @@ pub mod shape2d {
+             match operation {
+                 Transform::TRANSLATE(tx, ty) => {
+                     for point in self.points.iter_mut() {
+-                        *point = transforms::translate((*point).0, (*point).1, tx, ty);
++                        *point = transforms::translate(point, tx, ty);
++                    }
++                    for i in 0..self.vertices.len() {
++                        let vpoint = transforms::translate(&self.vertices[i].get_point(), tx, ty);
++                        self.vertices[i].set_point(vpoint);
+                     }
+                 }
+-                Transform::ROTATE(x_pivot, y_pivot, angle) => {
++                Transform::ROTATE(point_pivot, angle) => {
+                     for point in self.points.iter_mut() {
+-                        *point = transforms::rotate((*point).0, (*point).1, x_pivot, y_pivot, angle);
++                        *point = transforms::rotate(point, &point_pivot, angle);
++                    }
++                    for i in 0..self.vertices.len() {
++                        let vpoint = transforms::rotate(&self.vertices[i].get_point(), &point_pivot, angle);
++                        self.vertices[i].set_point(vpoint);
+                     }
+                 }
+-                Transform::ShearX(x_ref, y_ref, shx) => {
++                Transform::ShearX(point_ref, shx) => {
+                     for point in self.points.iter_mut() {
+-                        *point = transforms::shear_x((*point).0, (*point).1, x_ref, y_ref, shx);
++                        *point = transforms::shear_x(point, &point_ref, shx);
++                    }
++                    for i in 0..self.vertices.len() {
++                        let vpoint = transforms::shear_x(&self.vertices[i].get_point(), &point_ref, shx);
++                        self.vertices[i].set_point(vpoint);
+                     }
+                 }
+-                Transform::ShearY(x_ref, y_ref, shy) => {
++                Transform::ShearY(point_ref, shy) => {
+                     for point in self.points.iter_mut() {
+-                        *point = transforms::shear_y((*point).0, (*point).1, x_ref, y_ref, shy);
++                        *point = transforms::shear_y(point, &point_ref, shy);
++                    }
++                    for i in 0..self.vertices.len() {
++                        let vpoint = transforms::shear_y(&self.vertices[i].get_point(), &point_ref, shy);
++                        self.vertices[i].set_point(vpoint);
+                     }
+                 }
+             }
+@@ -565,15 +689,15 @@ pub mod shape2d {
+     }
+ 
+     pub struct Circle {
+-        point_center: (f32, f32),
++        point_center: Point,
+         radius: f32,
+         color: (u8, u8, u8, u8),
+         thickness: u8,
+-        state: Vec<(f32, f32)>,
++        state: Vec<Pixel>,
+     }
+ 
+     impl Circle {
+-        pub fn new(point_center: (f32, f32), radius: f32, color: (u8, u8, u8, u8), thickness: u8) -> Self {
++        pub fn new(point_center: Point, radius: f32, color: (u8, u8, u8, u8), thickness: u8) -> Self {
+             let mut circle = Self {
+                 point_center,
+                 radius,
+@@ -601,10 +725,15 @@ pub mod shape2d {
+             self.thickness = thickness;
+         }
+ 
+-        pub fn draw(&self, canvas: &mut canvas::Canvas) {
+-            for point in self.state.iter() {
+-                if (*point).0 >= 0.0 && (*point).1 >= 0.0 {
+-                    canvas.set_pixel_at((*point).0 as usize, (*point).1 as usize, self.color);
++        pub fn draw(&mut self, canvas: &mut canvas::Canvas) {
++            for pixel in self.state.iter_mut() {
++                let point = pixel.get_point();
++                let color = self.color;
++                pixel.set_color(self.color);
++                let x = point.get_x();
++                let y = point.get_y();
++                if x >= 0.0 && y >= 0.0 {
++                    canvas.set_pixel_at(x as usize, y as usize, color);
+                 }
+             }
+         }
+@@ -614,13 +743,19 @@ pub mod shape2d {
+             let mut x = radius;
+             let mut y = 0_isize;
+             let mut d = 1 - radius;
+-            let xc = self.point_center.0 as isize;
+-            let yc = self.point_center.1 as isize;
++            let xc = self.point_center.get_x() as isize;
++            let yc = self.point_center.get_y() as isize;
+ 
+             if radius > 0 {
+-                self.state.push(((x + xc) as f32, (-y + yc) as f32));
+-                self.state.push(((y + xc) as f32, (x + yc) as f32));
+-                self.state.push(((-y + xc) as f32, (x + yc) as f32));
++                let point = Point::new((x + xc) as f32, (-y + yc) as f32);
++                let pixel = Pixel::new(point, self.get_color());
++                self.state.push(pixel);
++                let point = Point::new((y + xc) as f32, (x + yc) as f32);
++                let pixel = Pixel::new(point, self.get_color());
++                self.state.push(pixel);
++                let point = Point::new((-y + xc) as f32, (x + yc) as f32);
++                let pixel = Pixel::new(point, self.get_color());
++                self.state.push(pixel);
+             }
+ 
+             while x > y {
+@@ -634,16 +769,38 @@ pub mod shape2d {
+                 if x < y {
+                     break;
+                 }
+-                self.state.push(((x + xc) as f32, (y + yc) as f32));
+-                self.state.push(((-x + xc) as f32, (y + yc) as f32));
+-                self.state.push(((x + xc) as f32, (-y + yc) as f32));
+-                self.state.push(((-x + xc) as f32, (-y + yc) as f32));
++                let point = Point::new((x + xc) as f32, (y + yc) as f32);
++                let pixel = Pixel::new(point, self.get_color());
++                self.state.push(pixel);
++
++                let point = Point::new((-x + xc) as f32, (y + yc) as f32);
++                let pixel = Pixel::new(point, self.get_color());
++                self.state.push(pixel);
++
++                let point = Point::new((x + xc) as f32, (-y + yc) as f32);
++                let pixel = Pixel::new(point, self.get_color());
++                self.state.push(pixel);
++
++                let point = Point::new((-x + xc) as f32, (-y + yc) as f32);
++                let pixel = Pixel::new(point, self.get_color());
++                self.state.push(pixel);
+ 
+                 if x != y {
+-                    self.state.push(((y + xc) as f32, (x + yc) as f32));
+-                    self.state.push(((-y + xc) as f32, (x + yc) as f32));
+-                    self.state.push(((y + xc) as f32, (-x + yc) as f32));
+-                    self.state.push(((-y + xc) as f32, (-x + yc) as f32));
++                    let point = Point::new((y + xc) as f32, (x + yc) as f32);
++                    let pixel = Pixel::new(point, self.get_color());
++                    self.state.push(pixel);
++
++                    let point = Point::new((-y + xc) as f32, (x + yc) as f32);
++                    let pixel = Pixel::new(point, self.get_color());
++                    self.state.push(pixel);
++
++                    let point = Point::new((y + xc) as f32, (-x + yc) as f32);
++                    let pixel = Pixel::new(point, self.get_color());
++                    self.state.push(pixel);
++
++                    let point = Point::new((-y + xc) as f32, (-x + yc) as f32);
++                    let pixel = Pixel::new(point, self.get_color());
++                    self.state.push(pixel);
+                 }
+             }
+         }
+@@ -651,29 +808,28 @@ pub mod shape2d {
+         pub fn transform(&mut self, operation: Transform) {
+             match operation {
+                 Transform::TRANSLATE(tx, ty) => {
+-                    self.point_center = transforms::translate(self.point_center.0, self.point_center.1, tx, ty);
++                    self.point_center = transforms::translate(&self.point_center, tx, ty);
+                     self.state.clear();
+                     self.calculate();
+                 }
+-                Transform::ROTATE(x_pivot, y_pivot, angle) => {
+-                    self.point_center =
+-                        transforms::rotate(self.point_center.0, self.point_center.1, x_pivot, y_pivot, angle);
++                Transform::ROTATE(point_pivot, angle) => {
++                    self.point_center = transforms::rotate(&self.point_center, &point_pivot, angle);
+                     self.state.clear();
+                     self.calculate();
+                 }
+-                Transform::ShearX(x_ref, y_ref, shx) => {
+-                    for point in self.state.iter_mut() {
+-                        *point = transforms::shear_x((*point).0, (*point).1, x_ref, y_ref, shx);
++                Transform::ShearX(point_ref, shx) => {
++                    for pixel in self.state.iter_mut() {
++                        let point = transforms::shear_x(&pixel.get_point(), &point_ref, shx);
++                        *pixel = Pixel::new(point, pixel.get_color());
+                     }
+-                    self.point_center =
+-                        transforms::shear_x(self.point_center.0, self.point_center.1, x_ref, y_ref, shx);
++                    self.point_center = transforms::shear_x(&self.point_center, &point_ref, shx);
+                 }
+-                Transform::ShearY(x_ref, y_ref, shy) => {
+-                    for point in self.state.iter_mut() {
+-                        *point = transforms::shear_y((*point).0, (*point).1, x_ref, y_ref, shy);
++                Transform::ShearY(point_ref, shy) => {
++                    for pixel in self.state.iter_mut() {
++                        let point = transforms::shear_y(&pixel.get_point(), &point_ref, shy);
++                        *pixel = Pixel::new(point, pixel.get_color());
+                     }
+-                    self.point_center =
+-                        transforms::shear_y(self.point_center.0, self.point_center.1, x_ref, y_ref, shy);
++                    self.point_center = transforms::shear_y(&self.point_center, &point_ref, shy);
+                 }
+             }
+         }
+@@ -682,29 +838,20 @@ pub mod shape2d {
+ 
+ pub mod curve {
+     use super::shape2d::Line;
+-    use crate::canvas;
+-    use crate::helpers::comb;
+-    use crate::helpers::linspace;
+-    use crate::transforms;
+-    use crate::Spline;
+-    use crate::Transform;
++    use crate::{canvas, transforms};
++    use crate::{helpers::comb, helpers::linspace};
++    use crate::{Pixel, Point, Spline, Transform};
+     pub struct Curve {
+-        points: Vec<(f32, f32)>,
++        points: Vec<Point>,
+         color: (u8, u8, u8, u8),
+         thickness: u8,
+         npoints: u32,
+         spline: Spline,
+-        state: Vec<(f32, f32, (u8, u8, u8, u8))>,
++        state: Vec<Pixel>,
+     }
+ 
+     impl Curve {
+-        pub fn new(
+-            points: Vec<(f32, f32)>,
+-            color: (u8, u8, u8, u8),
+-            thickness: u8,
+-            npoints: u32,
+-            spline: Spline,
+-        ) -> Self {
++        pub fn new(points: Vec<Point>, color: (u8, u8, u8, u8), thickness: u8, npoints: u32, spline: Spline) -> Self {
+             let mut npoints = npoints;
+             if npoints > 10 {
+                 npoints = 10;
+@@ -755,26 +902,14 @@ pub mod curve {
+         }
+ 
+         pub fn draw(&self, canvas: &mut canvas::Canvas) {
+-            let drawable = self.state.clone();
+-            let mut points = vec![];
+-            for point in drawable.iter() {
+-                points.push(((*point).0, (*point).1));
+-            }
+-            let line = Line::new(points, self.get_color(), self.thickness, canvas);
++            let points = self.state.iter().map(|pixel| pixel.get_point()).collect();
++            let mut line = Line::new(points, self.get_color(), self.thickness, canvas);
+             line.draw(canvas);
+         }
+-        fn knot_j(&self, knot_i: f32, pi: (f32, f32), pj: (f32, f32), alpha: f32) -> f32 {
+-            let (xi, yi) = pi;
+-            let (xj, yj) = pj;
+-            ((xj - xi).powf(2.0) + (yj - yi).powf(2.0)).powf(alpha) + knot_i
+-        }
+-        fn catmull_rom_spline(
+-            &self,
+-            p0: (f32, f32),
+-            p1: (f32, f32),
+-            p2: (f32, f32),
+-            p3: (f32, f32),
+-        ) -> Vec<(f32, f32, (u8, u8, u8, u8))> {
++        fn knot_j(&self, knot_i: f32, pi: Point, pj: Point, alpha: f32) -> f32 {
++            ((pj.get_x() - pi.get_x()).powf(2.0) + (pj.get_y() - pi.get_y()).powf(2.0)).powf(alpha) + knot_i
++        }
++        fn catmull_rom_spline(&self, p0: Point, p1: Point, p2: Point, p3: Point) -> Vec<Pixel> {
+             let mut alpha = match self.spline {
+                 Spline::UNIFORM => 0.0,
+                 Spline::CENTRIPETAL => 0.5,
+@@ -788,6 +923,11 @@ pub mod curve {
+             let t2 = self.knot_j(t1, p1, p2, alpha);
+             let t3 = self.knot_j(t2, p2, p3, alpha);
+ 
++            let p0 = (p0.get_x(), p0.get_y());
++            let p1 = (p1.get_x(), p1.get_y());
++            let p2 = (p2.get_x(), p2.get_y());
++            let p3 = (p3.get_x(), p3.get_y());
++
+             let t_lin = linspace(t1, t2, self.npoints);
+             let mut c = vec![];
+ 
+@@ -817,8 +957,10 @@ pub mod curve {
+                 let cc0 = ca20;
+                 let cc1 = ca21;
+ 
+-                let (x, y) = (cc0 * b1.0 + cc1 * b2.0, cc0 * b1.1 + cc1 * b2.1);
+-                c.push((x, y, self.color));
++                let val = (cc0 * b1.0 + cc1 * b2.0, cc0 * b1.1 + cc1 * b2.1);
++                let point = Point::from(val);
++                let pixel = Pixel::new(point, self.color);
++                c.push(pixel);
+             }
+             c
+         }
+@@ -827,22 +969,22 @@ pub mod curve {
+             match operation {
+                 Transform::TRANSLATE(tx, ty) => {
+                     for point in self.points.iter_mut() {
+-                        *point = transforms::translate((*point).0, (*point).1, tx, ty);
++                        *point = transforms::translate(point, tx, ty);
+                     }
+                 }
+-                Transform::ROTATE(x_pivot, y_pivot, angle) => {
++                Transform::ROTATE(point_pivot, angle) => {
+                     for point in self.points.iter_mut() {
+-                        *point = transforms::rotate((*point).0, (*point).1, x_pivot, y_pivot, angle);
++                        *point = transforms::rotate(point, &point_pivot, angle);
+                     }
+                 }
+-                Transform::ShearX(x_ref, y_ref, shx) => {
++                Transform::ShearX(point_ref, shx) => {
+                     for point in self.points.iter_mut() {
+-                        *point = transforms::shear_x((*point).0, (*point).1, x_ref, y_ref, shx);
++                        *point = transforms::shear_x(point, &point_ref, shx);
+                     }
+                 }
+-                Transform::ShearY(x_ref, y_ref, shy) => {
++                Transform::ShearY(point_ref, shy) => {
+                     for point in self.points.iter_mut() {
+-                        *point = transforms::shear_y((*point).0, (*point).1, x_ref, y_ref, shy);
++                        *point = transforms::shear_y(point, &point_ref, shy);
+                     }
+                 }
+             }
+@@ -853,15 +995,15 @@ pub mod curve {
+ 
+     pub struct Bezier {
+         npoints: u32,
+-        control_points: Vec<(f32, f32)>,
++        control_points: Vec<Point>,
+         degree: usize,
+         color: (u8, u8, u8, u8),
+         thickness: u8,
+-        state: Vec<(f32, f32)>,
++        state: Vec<Pixel>,
+     }
+ 
+     impl Bezier {
+-        pub fn new(npoints: u32, control_points: Vec<(f32, f32)>, color: (u8, u8, u8, u8), thickness: u8) -> Self {
++        pub fn new(npoints: u32, control_points: Vec<Point>, color: (u8, u8, u8, u8), thickness: u8) -> Self {
+             let degree = control_points.len() - 1;
+             let mut bezier = Self {
+                 npoints,
+@@ -901,18 +1043,21 @@ pub mod curve {
+             for t in t_lin.iter() {
+                 let mut p = (0.0, 0.0);
+                 for (i, point) in self.control_points.iter().enumerate() {
+-                    let (x, y) = *point;
++                    let x = point.get_x();
++                    let y = point.get_y();
+                     let j = self.blend(i, *t);
+                     p.0 += x * j;
+                     p.1 += y * j;
+                 }
+-                self.state.push(p);
++                let point = Point::from(p);
++                let pixel = Pixel::new(point, self.color);
++                self.state.push(pixel);
+             }
+         }
+ 
+         pub fn draw(&self, canvas: &mut canvas::Canvas) {
+-            let drawable = self.state.clone();
+-            let line = Line::new(drawable, self.color, self.thickness, canvas);
++            let points = self.state.iter().map(|pixel| pixel.get_point()).collect();
++            let mut line = Line::new(points, self.color, self.thickness, canvas);
+             line.draw(canvas);
+         }
+ 
+@@ -920,26 +1065,28 @@ pub mod curve {
+             match operation {
+                 Transform::TRANSLATE(tx, ty) => {
+                     for point in self.control_points.iter_mut() {
+-                        *point = transforms::translate((*point).0, (*point).1, tx, ty);
++                        *point = transforms::translate(point, tx, ty);
+                     }
+                     self.state.clear();
+                     self.calculate();
+                 }
+-                Transform::ROTATE(x_pivot, y_pivot, angle) => {
++                Transform::ROTATE(point_pivot, angle) => {
+                     for point in self.control_points.iter_mut() {
+-                        *point = transforms::rotate((*point).0, (*point).1, x_pivot, y_pivot, angle);
++                        *point = transforms::rotate(point, &point_pivot, angle);
+                     }
+                     self.state.clear();
+                     self.calculate();
+                 }
+-                Transform::ShearX(x_ref, y_ref, shx) => {
+-                    for point in self.state.iter_mut() {
+-                        *point = transforms::shear_x((*point).0, (*point).1, x_ref, y_ref, shx);
++                Transform::ShearX(point_ref, shx) => {
++                    for pixel in self.state.iter_mut() {
++                        let point = transforms::shear_x(&pixel.get_point(), &point_ref, shx);
++                        *pixel = Pixel::new(point, self.color);
+                     }
+                 }
+-                Transform::ShearY(x_ref, y_ref, shy) => {
+-                    for point in self.state.iter_mut() {
+-                        *point = transforms::shear_y((*point).0, (*point).1, x_ref, y_ref, shy);
++                Transform::ShearY(point_ref, shy) => {
++                    for pixel in self.state.iter_mut() {
++                        let point = transforms::shear_y(&pixel.get_point(), &point_ref, shy);
++                        *pixel = Pixel::new(point, self.color);
+                     }
+                 }
+             }
+diff --git a/src/transforms.rs b/src/transforms.rs
+index 178dc63..83d8b5a 100644
+--- a/src/transforms.rs
++++ b/src/transforms.rs
+@@ -1,45 +1,66 @@
+ use crate::Angle;
++use crate::Point;
+ 
+-pub fn translate(x_old: f32, y_old: f32, tx: f32, ty: f32) -> (f32, f32) {
+-    (x_old + tx, y_old + ty)
++pub fn translate(point_old: &Point, tx: f32, ty: f32) -> Point {
++    let x_old = point_old.get_x();
++    let y_old = point_old.get_y();
++    Point::from((x_old + tx, y_old + ty))
+ }
+ 
+-pub fn rotate(x_old: f32, y_old: f32, x_pivot: f32, y_pivot: f32, angle: Angle) -> (f32, f32) {
++pub fn rotate(point_old: &Point, point_pivot: &Point, angle: Angle) -> Point {
+     match angle {
+         Angle::DEGREE(deg) => {
+             let rad = (std::f32::consts::PI / 180.0) * deg;
++            let x_old = point_old.get_x();
++            let y_old = point_old.get_y();
++            let x_pivot = point_pivot.get_x();
++            let y_pivot = point_pivot.get_y();
+             let x_old = x_old - x_pivot;
+             let y_old = y_old - y_pivot;
+             let x_new = x_old * f32::cos(rad) - y_old * f32::sin(rad);
+             let y_new = x_old * f32::sin(rad) + y_old * f32::cos(rad);
+ 
+-            (x_new + x_pivot, y_new + y_pivot)
++            Point::from((x_new + x_pivot, y_new + y_pivot))
+         }
+         Angle::RADIAN(rad) => {
++            let x_old = point_old.get_x();
++            let y_old = point_old.get_y();
++            let x_pivot = point_pivot.get_x();
++            let y_pivot = point_pivot.get_y();
+             let x_old = x_old - x_pivot;
+             let y_old = y_old - y_pivot;
+             let x_new = x_old * f32::cos(rad) - y_old * f32::sin(rad);
+             let y_new = x_old * f32::sin(rad) + y_old * f32::cos(rad);
+ 
+-            (x_new + x_pivot, y_new + y_pivot)
++            Point::from((x_new + x_pivot, y_new + y_pivot))
+         }
+     }
+ }
+ 
+-pub fn shear_x(x_old: f32, y_old: f32, x_ref: f32, y_ref: f32, shx: f32) -> (f32, f32) {
++pub fn shear_x(point_old: &Point, point_ref: &Point, shx: f32) -> Point {
++    let x_old = point_old.get_x();
++    let y_old = point_old.get_y();
++    let x_ref = point_ref.get_x();
++    let y_ref = point_ref.get_y();
++
+     let x_old = x_old - x_ref;
+     let y_old = y_old - y_ref;
+ 
+     let x_new = x_old + y_old * shx + x_ref;
+     let y_new = y_old + y_ref;
+-    (x_new, y_new)
++    Point::from((x_new, y_new))
+ }
+-pub fn shear_y(x_old: f32, y_old: f32, x_ref: f32, y_ref: f32, shy: f32) -> (f32, f32) {
++pub fn shear_y(point_old: &Point, point_ref: &Point, shy: f32) -> Point {
++    let x_old = point_old.get_x();
++    let y_old = point_old.get_y();
++    let x_ref = point_ref.get_x();
++    let y_ref = point_ref.get_y();
++
+     let x_old = x_old - x_ref;
+     let y_old = y_old - y_ref;
+ 
+     let x_new = x_old + x_ref;
+     let y_new = y_old + x_old * shy + y_ref;
+ 
+-    (x_new, y_new)
++    Point::from((x_new, y_new))
+ }
+diff --git a/tests/outputs/canvas_square_ShearY.png b/tests/outputs/canvas_square_ShearY.png
+index 2048c30..6382039 100644
+Binary files a/tests/outputs/canvas_square_ShearY.png and b/tests/outputs/canvas_square_ShearY.png differ
+diff --git a/tests/outputs/line_aa.png b/tests/outputs/line_aa.png
+index 6992e48..2de498d 100644
+Binary files a/tests/outputs/line_aa.png and b/tests/outputs/line_aa.png differ
+diff --git a/tests/outputs/polygon_aa.png b/tests/outputs/polygon_aa.png
+index 063f5ab..34c2cab 100644
+Binary files a/tests/outputs/polygon_aa.png and b/tests/outputs/polygon_aa.png differ
+diff --git a/tests/outputs/polygon_aa_rotate.png b/tests/outputs/polygon_aa_rotate.png
+index e7f2cd3..b1c0c94 100644
+Binary files a/tests/outputs/polygon_aa_rotate.png and b/tests/outputs/polygon_aa_rotate.png differ
+diff --git a/tests/outputs/polygon_aa_shearX.png b/tests/outputs/polygon_aa_shearX.png
+index eae447c..dc6ef49 100644
+Binary files a/tests/outputs/polygon_aa_shearX.png and b/tests/outputs/polygon_aa_shearX.png differ
+diff --git a/tests/outputs/polygon_aa_shearY.png b/tests/outputs/polygon_aa_shearY.png
+index aca96fb..880e22e 100644
+Binary files a/tests/outputs/polygon_aa_shearY.png and b/tests/outputs/polygon_aa_shearY.png differ
+diff --git a/tests/outputs/polygon_aa_translate.png b/tests/outputs/polygon_aa_translate.png
+index 99f5e15..69dce39 100644
+Binary files a/tests/outputs/polygon_aa_translate.png and b/tests/outputs/polygon_aa_translate.png differ
+diff --git a/tests/outputs/rectangle_aa_ShearX.png b/tests/outputs/rectangle_aa_ShearX.png
+index b00c8f9..1686b49 100644
+Binary files a/tests/outputs/rectangle_aa_ShearX.png and b/tests/outputs/rectangle_aa_ShearX.png differ
+diff --git a/tests/outputs/rectangle_aa_ShearY.png b/tests/outputs/rectangle_aa_ShearY.png
+index 97ec39a..9fdd68b 100644
+Binary files a/tests/outputs/rectangle_aa_ShearY.png and b/tests/outputs/rectangle_aa_ShearY.png differ
+diff --git a/tests/outputs/rectangle_aa_rotate.png b/tests/outputs/rectangle_aa_rotate.png
+index 24a62f6..351d2ab 100644
+Binary files a/tests/outputs/rectangle_aa_rotate.png and b/tests/outputs/rectangle_aa_rotate.png differ
+diff --git a/tests/outputs/square_aa_ShearX.png b/tests/outputs/square_aa_ShearX.png
+index c5621f6..9acd24d 100644
+Binary files a/tests/outputs/square_aa_ShearX.png and b/tests/outputs/square_aa_ShearX.png differ
+diff --git a/tests/outputs/square_aa_ShearY.png b/tests/outputs/square_aa_ShearY.png
+index 1ba59a3..f392209 100644
+Binary files a/tests/outputs/square_aa_ShearY.png and b/tests/outputs/square_aa_ShearY.png differ
+diff --git a/tests/outputs/square_aa_rotate.png b/tests/outputs/square_aa_rotate.png
+index 12c0c49..9100b4a 100644
+Binary files a/tests/outputs/square_aa_rotate.png and b/tests/outputs/square_aa_rotate.png differ
+diff --git a/tests/test_canvas.rs b/tests/test_canvas.rs
+index dff80fd..dc67322 100644
+--- a/tests/test_canvas.rs
++++ b/tests/test_canvas.rs
+@@ -13,15 +13,6 @@ fn test_fill() {
+     canv.fill((180_u8, 2_u8, 50_u8, 255_u8));
+     save_image(Canvas::to_photon(&canv), "tests/outputs/canvas_fill.jpg");
+ }
+-#[test]
+-fn test_get_pixel_at() {
+-    let canv = Canvas::new(512, 512);
+-    let p1 = canv.get_pixel_at(112, 134);
+-    let p2 = canv.get_pixel_at(1120, 1340);
+-
+-    assert_eq!(p1, Some((255_u8, 255_u8, 255_u8, 255_u8)));
+-    assert_eq!(p2, None);
+-}
+ 
+ #[test]
+ fn test_set_pixel_at() {
+diff --git a/tests/test_curve.rs b/tests/test_curve.rs
+index f1eb67c..5b087db 100644
+--- a/tests/test_curve.rs
++++ b/tests/test_curve.rs
+@@ -1,19 +1,19 @@
+ #[cfg(test)]
+ use generative::canvas::Canvas;
+ use generative::shape::curve::{Bezier, Curve};
+-use generative::Spline;
++use generative::{Point, Spline};
+ #[test]
+ fn test_curve_init() {
+     let mut canvas = Canvas::new(700, 700);
+     canvas.fill((128, 128, 128, 255));
+     let spline = Spline::CENTRIPETAL;
+     let points = vec![
+-        (0.0, 150.0),
+-        (200.0, 200.0),
+-        (300.0, 100.0),
+-        (400.0, 50.0),
+-        (500.0, 100.0),
+-        (60.0, 200.0),
++        Point::new(0.0, 150.0),
++        Point::new(200.0, 200.0),
++        Point::new(300.0, 100.0),
++        Point::new(400.0, 50.0),
++        Point::new(500.0, 100.0),
++        Point::new(60.0, 200.0),
+     ];
+     let curve = Curve::new(points, (255, 102, 0, 255), 1, 1000, spline);
+     curve.draw(&mut canvas);
+@@ -23,7 +23,12 @@ fn test_curve_init() {
+ fn test_bezier_init() {
+     let mut canvas = Canvas::new(1024, 1024);
+     canvas.fill((128, 128, 128, 255));
+-    let points = vec![(100.0, 0.0), (300.0, 300.0), (600.0, 300.0), (800.0, 100.0)];
++    let points = vec![
++        Point::new(100.0, 0.0),
++        Point::new(300.0, 300.0),
++        Point::new(600.0, 300.0),
++        Point::new(800.0, 100.0),
++    ];
+     let bz = Bezier::new(20, points, (255, 102, 0, 255), 1);
+     bz.draw(&mut canvas);
+     canvas.save_as_image("tests/outputs/bezier_init.png");
+diff --git a/tests/test_curve_aa_transorms.rs b/tests/test_curve_aa_transorms.rs
+index e2c1099..fe81add 100644
+--- a/tests/test_curve_aa_transorms.rs
++++ b/tests/test_curve_aa_transorms.rs
+@@ -1,9 +1,7 @@
+ #[cfg(test)]
+ use generative::canvas::Canvas;
+ use generative::shape_aa::curve::{Bezier, Curve};
+-use generative::Angle;
+-use generative::Spline;
+-use generative::Transform;
++use generative::{Angle, Point, Spline, Transform};
+ 
+ #[test]
+ fn test_curve_translate() {
+@@ -11,12 +9,12 @@ fn test_curve_translate() {
+     canvas.fill((128, 128, 128, 255));
+     let spline = Spline::CENTRIPETAL;
+     let points = vec![
+-        (0.0, 150.0),
+-        (200.0, 200.0),
+-        (300.0, 100.0),
+-        (400.0, 50.0),
+-        (500.0, 100.0),
+-        (60.0, 200.0),
++        Point::new(0.0, 150.0),
++        Point::new(200.0, 200.0),
++        Point::new(300.0, 100.0),
++        Point::new(400.0, 50.0),
++        Point::new(500.0, 100.0),
++        Point::new(60.0, 200.0),
+     ];
+     let mut curve = Curve::new(points, (255, 102, 0, 255), 1, 1000, spline);
+     curve.draw(&mut canvas);
+@@ -31,17 +29,17 @@ fn test_curve_rotate() {
+     canvas.fill((128, 128, 128, 255));
+     let spline = Spline::CENTRIPETAL;
+     let points = vec![
+-        (0.0, 150.0),
+-        (200.0, 200.0),
+-        (300.0, 100.0),
+-        (400.0, 50.0),
+-        (500.0, 100.0),
+-        (60.0, 200.0),
++        Point::new(0.0, 150.0),
++        Point::new(200.0, 200.0),
++        Point::new(300.0, 100.0),
++        Point::new(400.0, 50.0),
++        Point::new(500.0, 100.0),
++        Point::new(60.0, 200.0),
+     ];
+     let mut curve = Curve::new(points, (255, 102, 0, 255), 1, 1000, spline);
+     curve.draw(&mut canvas);
+     curve.set_color((180, 2, 20, 255));
+-    curve.transform(Transform::ROTATE(200.0, 200.0, Angle::DEGREE(90.0)));
++    curve.transform(Transform::ROTATE(Point::new(200.0, 200.0), Angle::DEGREE(90.0)));
+     curve.draw(&mut canvas);
+     canvas.save_as_image("tests/outputs/curve_aa_rotate.png");
+ }
+@@ -51,17 +49,17 @@ fn test_curve_shear_x() {
+     canvas.fill((128, 128, 128, 255));
+     let spline = Spline::CENTRIPETAL;
+     let points = vec![
+-        (0.0, 150.0),
+-        (200.0, 200.0),
+-        (300.0, 100.0),
+-        (400.0, 50.0),
+-        (500.0, 100.0),
+-        (60.0, 200.0),
++        Point::new(0.0, 150.0),
++        Point::new(200.0, 200.0),
++        Point::new(300.0, 100.0),
++        Point::new(400.0, 50.0),
++        Point::new(500.0, 100.0),
++        Point::new(60.0, 200.0),
+     ];
+     let mut curve = Curve::new(points, (255, 102, 0, 255), 1, 1000, spline);
+     curve.draw(&mut canvas);
+     curve.set_color((180, 2, 20, 255));
+-    curve.transform(Transform::ShearX(200.0, 200.0, 2.0));
++    curve.transform(Transform::ShearX(Point::new(200.0, 200.0), 2.0));
+     curve.draw(&mut canvas);
+     canvas.save_as_image("tests/outputs/curve_aa_shear_x.png");
+ }
+@@ -71,17 +69,17 @@ fn test_curve_shear_y() {
+     canvas.fill((128, 128, 128, 255));
+     let spline = Spline::CENTRIPETAL;
+     let points = vec![
+-        (0.0, 150.0),
+-        (200.0, 200.0),
+-        (300.0, 100.0),
+-        (400.0, 50.0),
+-        (500.0, 100.0),
+-        (60.0, 200.0),
++        Point::new(0.0, 150.0),
++        Point::new(200.0, 200.0),
++        Point::new(300.0, 100.0),
++        Point::new(400.0, 50.0),
++        Point::new(500.0, 100.0),
++        Point::new(60.0, 200.0),
+     ];
+     let mut curve = Curve::new(points, (255, 102, 0, 255), 1, 1000, spline);
+     curve.draw(&mut canvas);
+     curve.set_color((180, 2, 20, 255));
+-    curve.transform(Transform::ShearY(200.0, 200.0, 2.0));
++    curve.transform(Transform::ShearY(Point::new(200.0, 200.0), 2.0));
+     curve.draw(&mut canvas);
+     canvas.save_as_image("tests/outputs/curve_aa_shear_y.png");
+ }
+@@ -89,7 +87,12 @@ fn test_curve_shear_y() {
+ fn test_bezier_translate() {
+     let mut canvas = Canvas::new(700, 700);
+     canvas.fill((128, 128, 128, 255));
+-    let points = vec![(0.0, 0.0), (0.0, 511.0), (511.0, 0.0), (511.0, 511.0)];
++    let points = vec![
++        Point::new(0.0, 0.0),
++        Point::new(0.0, 511.0),
++        Point::new(511.0, 0.0),
++        Point::new(511.0, 511.0),
++    ];
+     let mut bz = Bezier::new(100, points, (255, 102, 0, 255), 1);
+     bz.draw(&mut canvas);
+     bz.set_color((180, 2, 50, 255));
+@@ -101,11 +104,16 @@ fn test_bezier_translate() {
+ fn test_bezier_rotate() {
+     let mut canvas = Canvas::new(700, 700);
+     canvas.fill((128, 128, 128, 255));
+-    let points = vec![(0.0, 0.0), (0.0, 511.0), (511.0, 0.0), (511.0, 511.0)];
++    let points = vec![
++        Point::new(0.0, 0.0),
++        Point::new(0.0, 511.0),
++        Point::new(511.0, 0.0),
++        Point::new(511.0, 511.0),
++    ];
+     let mut bz = Bezier::new(100, points, (255, 102, 0, 255), 1);
+     bz.draw(&mut canvas);
+     bz.set_color((180, 2, 50, 255));
+-    bz.transform(Transform::ROTATE(256.0, 256.0, Angle::DEGREE(-45.0)));
++    bz.transform(Transform::ROTATE(Point::new(256.0, 256.0), Angle::DEGREE(-45.0)));
+     bz.draw(&mut canvas);
+     canvas.save_as_image("tests/outputs/bezier_aa_rotate.png");
+ }
+@@ -113,11 +121,16 @@ fn test_bezier_rotate() {
+ fn test_bezier_shear_x() {
+     let mut canvas = Canvas::new(700, 700);
+     canvas.fill((128, 128, 128, 255));
+-    let points = vec![(0.0, 0.0), (0.0, 511.0), (511.0, 0.0), (511.0, 511.0)];
++    let points = vec![
++        Point::new(0.0, 0.0),
++        Point::new(0.0, 511.0),
++        Point::new(511.0, 0.0),
++        Point::new(511.0, 511.0),
++    ];
+     let mut bz = Bezier::new(100, points, (255, 102, 0, 255), 1);
+     bz.draw(&mut canvas);
+     bz.set_color((180, 2, 50, 255));
+-    bz.transform(Transform::ShearX(256.0, 256.0, 2.0));
++    bz.transform(Transform::ShearX(Point::new(256.0, 256.0), 2.0));
+     bz.draw(&mut canvas);
+     canvas.save_as_image("tests/outputs/bezier_aa_shear_x.png");
+ }
+@@ -125,11 +138,16 @@ fn test_bezier_shear_x() {
+ fn test_bezier_shear_y() {
+     let mut canvas = Canvas::new(700, 700);
+     canvas.fill((128, 128, 128, 255));
+-    let points = vec![(0.0, 0.0), (0.0, 511.0), (511.0, 0.0), (511.0, 511.0)];
++    let points = vec![
++        Point::new(0.0, 0.0),
++        Point::new(0.0, 511.0),
++        Point::new(511.0, 0.0),
++        Point::new(511.0, 511.0),
++    ];
+     let mut bz = Bezier::new(100, points, (255, 102, 0, 255), 1);
+     bz.draw(&mut canvas);
+     bz.set_color((180, 2, 50, 255));
+-    bz.transform(Transform::ShearY(256.0, 256.0, 2.0));
++    bz.transform(Transform::ShearY(Point::new(256.0, 256.0), 2.0));
+     bz.draw(&mut canvas);
+     canvas.save_as_image("tests/outputs/bezier_aa_shear_y.png");
+ }
+diff --git a/tests/test_curve_transforms.rs b/tests/test_curve_transforms.rs
+index 08a8061..92c3dbc 100644
+--- a/tests/test_curve_transforms.rs
++++ b/tests/test_curve_transforms.rs
+@@ -1,9 +1,7 @@
+ #[cfg(test)]
+ use generative::canvas::Canvas;
+ use generative::shape::curve::{Bezier, Curve};
+-use generative::Angle;
+-use generative::Spline;
+-use generative::Transform;
++use generative::{Angle, Point, Spline, Transform};
+ 
+ #[test]
+ fn test_curve_translate() {
+@@ -11,12 +9,12 @@ fn test_curve_translate() {
+     canvas.fill((128, 128, 128, 255));
+     let spline = Spline::CENTRIPETAL;
+     let points = vec![
+-        (0.0, 150.0),
+-        (200.0, 200.0),
+-        (300.0, 100.0),
+-        (400.0, 50.0),
+-        (500.0, 100.0),
+-        (60.0, 200.0),
++        Point::new(0.0, 150.0),
++        Point::new(200.0, 200.0),
++        Point::new(300.0, 100.0),
++        Point::new(400.0, 50.0),
++        Point::new(500.0, 100.0),
++        Point::new(60.0, 200.0),
+     ];
+     let mut curve = Curve::new(points, (255, 102, 0, 255), 1, 1000, spline);
+     curve.draw(&mut canvas);
+@@ -31,17 +29,17 @@ fn test_curve_rotate() {
+     canvas.fill((128, 128, 128, 255));
+     let spline = Spline::CENTRIPETAL;
+     let points = vec![
+-        (0.0, 150.0),
+-        (200.0, 200.0),
+-        (300.0, 100.0),
+-        (400.0, 50.0),
+-        (500.0, 100.0),
+-        (60.0, 200.0),
++        Point::new(0.0, 150.0),
++        Point::new(200.0, 200.0),
++        Point::new(300.0, 100.0),
++        Point::new(400.0, 50.0),
++        Point::new(500.0, 100.0),
++        Point::new(60.0, 200.0),
+     ];
+     let mut curve = Curve::new(points, (255, 102, 0, 255), 1, 1000, spline);
+     curve.draw(&mut canvas);
+     curve.set_color((180, 2, 20, 255));
+-    curve.transform(Transform::ROTATE(200.0, 200.0, Angle::DEGREE(90.0)));
++    curve.transform(Transform::ROTATE(Point::new(200.0, 200.0), Angle::DEGREE(90.0)));
+     curve.draw(&mut canvas);
+     canvas.save_as_image("tests/outputs/curve_rotate.png");
+ }
+@@ -51,17 +49,17 @@ fn test_curve_shear_x() {
+     canvas.fill((128, 128, 128, 255));
+     let spline = Spline::CENTRIPETAL;
+     let points = vec![
+-        (0.0, 150.0),
+-        (200.0, 200.0),
+-        (300.0, 100.0),
+-        (400.0, 50.0),
+-        (500.0, 100.0),
+-        (60.0, 200.0),
++        Point::new(0.0, 150.0),
++        Point::new(200.0, 200.0),
++        Point::new(300.0, 100.0),
++        Point::new(400.0, 50.0),
++        Point::new(500.0, 100.0),
++        Point::new(60.0, 200.0),
+     ];
+     let mut curve = Curve::new(points, (255, 102, 0, 255), 1, 1000, spline);
+     curve.draw(&mut canvas);
+     curve.set_color((180, 2, 20, 255));
+-    curve.transform(Transform::ShearX(200.0, 200.0, 2.0));
++    curve.transform(Transform::ShearX(Point::new(200.0, 200.0), 2.0));
+     curve.draw(&mut canvas);
+     canvas.save_as_image("tests/outputs/curve_shear_x.png");
+ }
+@@ -71,17 +69,17 @@ fn test_curve_shear_y() {
+     canvas.fill((128, 128, 128, 255));
+     let spline = Spline::CENTRIPETAL;
+     let points = vec![
+-        (0.0, 150.0),
+-        (200.0, 200.0),
+-        (300.0, 100.0),
+-        (400.0, 50.0),
+-        (500.0, 100.0),
+-        (60.0, 200.0),
++        Point::new(0.0, 150.0),
++        Point::new(200.0, 200.0),
++        Point::new(300.0, 100.0),
++        Point::new(400.0, 50.0),
++        Point::new(500.0, 100.0),
++        Point::new(60.0, 200.0),
+     ];
+     let mut curve = Curve::new(points, (255, 102, 0, 255), 1, 1000, spline);
+     curve.draw(&mut canvas);
+     curve.set_color((180, 2, 20, 255));
+-    curve.transform(Transform::ShearY(200.0, 200.0, 2.0));
++    curve.transform(Transform::ShearY(Point::new(200.0, 200.0), 2.0));
+     curve.draw(&mut canvas);
+     canvas.save_as_image("tests/outputs/curve_shear_y.png");
+ }
+@@ -89,7 +87,12 @@ fn test_curve_shear_y() {
+ fn test_bezier_translate() {
+     let mut canvas = Canvas::new(700, 700);
+     canvas.fill((128, 128, 128, 255));
+-    let points = vec![(0.0, 0.0), (0.0, 511.0), (511.0, 0.0), (511.0, 511.0)];
++    let points = vec![
++        Point::new(0.0, 0.0),
++        Point::new(0.0, 511.0),
++        Point::new(511.0, 0.0),
++        Point::new(511.0, 511.0),
++    ];
+     let mut bz = Bezier::new(100, points, (255, 102, 0, 255), 1);
+     bz.draw(&mut canvas);
+     bz.set_color((180, 2, 50, 255));
+@@ -101,11 +104,16 @@ fn test_bezier_translate() {
+ fn test_bezier_rotate() {
+     let mut canvas = Canvas::new(700, 700);
+     canvas.fill((128, 128, 128, 255));
+-    let points = vec![(0.0, 0.0), (0.0, 511.0), (511.0, 0.0), (511.0, 511.0)];
++    let points = vec![
++        Point::new(0.0, 0.0),
++        Point::new(0.0, 511.0),
++        Point::new(511.0, 0.0),
++        Point::new(511.0, 511.0),
++    ];
+     let mut bz = Bezier::new(100, points, (255, 102, 0, 255), 1);
+     bz.draw(&mut canvas);
+     bz.set_color((180, 2, 50, 255));
+-    bz.transform(Transform::ROTATE(256.0, 256.0, Angle::DEGREE(-45.0)));
++    bz.transform(Transform::ROTATE(Point::new(256.0, 256.0), Angle::DEGREE(-45.0)));
+     bz.draw(&mut canvas);
+     canvas.save_as_image("tests/outputs/bezier_rotate.png");
+ }
+@@ -113,11 +121,16 @@ fn test_bezier_rotate() {
+ fn test_bezier_shear_x() {
+     let mut canvas = Canvas::new(700, 700);
+     canvas.fill((128, 128, 128, 255));
+-    let points = vec![(0.0, 0.0), (0.0, 511.0), (511.0, 0.0), (511.0, 511.0)];
++    let points = vec![
++        Point::new(0.0, 0.0),
++        Point::new(0.0, 511.0),
++        Point::new(511.0, 0.0),
++        Point::new(511.0, 511.0),
++    ];
+     let mut bz = Bezier::new(100, points, (255, 102, 0, 255), 1);
+     bz.draw(&mut canvas);
+     bz.set_color((180, 2, 50, 255));
+-    bz.transform(Transform::ShearX(256.0, 256.0, 2.0));
++    bz.transform(Transform::ShearX(Point::new(256.0, 256.0), 2.0));
+     bz.draw(&mut canvas);
+     canvas.save_as_image("tests/outputs/bezier_shear_x.png");
+ }
+@@ -125,11 +138,16 @@ fn test_bezier_shear_x() {
+ fn test_bezier_shear_y() {
+     let mut canvas = Canvas::new(700, 700);
+     canvas.fill((128, 128, 128, 255));
+-    let points = vec![(0.0, 0.0), (0.0, 511.0), (511.0, 0.0), (511.0, 511.0)];
++    let points = vec![
++        Point::new(0.0, 0.0),
++        Point::new(0.0, 511.0),
++        Point::new(511.0, 0.0),
++        Point::new(511.0, 511.0),
++    ];
+     let mut bz = Bezier::new(100, points, (255, 102, 0, 255), 1);
+     bz.draw(&mut canvas);
+     bz.set_color((180, 2, 50, 255));
+-    bz.transform(Transform::ShearY(256.0, 256.0, 2.0));
++    bz.transform(Transform::ShearY(Point::new(256.0, 256.0), 2.0));
+     bz.draw(&mut canvas);
+     canvas.save_as_image("tests/outputs/bezier_shear_y.png");
+ }
+diff --git a/tests/test_curves_aa.rs b/tests/test_curves_aa.rs
+index 2f61cdc..c6e53f5 100644
+--- a/tests/test_curves_aa.rs
++++ b/tests/test_curves_aa.rs
+@@ -1,19 +1,19 @@
+ #[cfg(test)]
+ use generative::canvas::Canvas;
+ use generative::shape_aa::curve::{Bezier, Curve};
+-use generative::Spline;
++use generative::{Point, Spline};
+ #[test]
+ fn test_curve_init() {
+     let mut canvas = Canvas::new(700, 700);
+     canvas.fill((128, 128, 128, 255));
+     let spline = Spline::CENTRIPETAL;
+     let points = vec![
+-        (0.0, 150.0),
+-        (200.0, 200.0),
+-        (300.0, 100.0),
+-        (400.0, 50.0),
+-        (500.0, 100.0),
+-        (60.0, 200.0),
++        Point::new(0.0, 150.0),
++        Point::new(200.0, 200.0),
++        Point::new(300.0, 100.0),
++        Point::new(400.0, 50.0),
++        Point::new(500.0, 100.0),
++        Point::new(60.0, 200.0),
+     ];
+     let curve = Curve::new(points, (255, 0, 0, 255), 1, 10, spline);
+     curve.draw(&mut canvas);
+@@ -23,7 +23,12 @@ fn test_curve_init() {
+ fn test_bezier_init() {
+     let mut canvas = Canvas::new(1024, 1024);
+     canvas.fill((128, 128, 128, 255));
+-    let points = vec![(100.0, 0.0), (300.0, 300.0), (600.0, 300.0), (800.0, 100.0)];
++    let points = vec![
++        Point::new(100.0, 0.0),
++        Point::new(300.0, 300.0),
++        Point::new(600.0, 300.0),
++        Point::new(800.0, 100.0),
++    ];
+     let bz = Bezier::new(20, points, (255, 102, 0, 255), 1);
+     bz.draw(&mut canvas);
+     canvas.save_as_image("tests/outputs/bezier_aa_init.png");
+diff --git a/tests/test_helpers.rs b/tests/test_helpers.rs
+index 0c36e1a..f873607 100644
+--- a/tests/test_helpers.rs
++++ b/tests/test_helpers.rs
+@@ -1,5 +1,6 @@
+ #[cfg(test)]
+ use generative::helpers::*;
++use generative::Point;
+ #[test]
+ fn test_linspace() {
+     assert_eq!(linspace(2.0, 3.0, 5), vec![2.0, 2.25, 2.5, 2.75, 3.0]);
+@@ -20,3 +21,42 @@ fn test_lerp() {
+ fn test_norm() {
+     assert_eq!(norm(50.0, 0.0, 100.0), 0.5);
+ }
++#[test]
++fn test_euclid() {
++    let p1 = Point::new(0.0, 0.0);
++    let p2 = Point::new(3.0, 4.0);
++    assert_eq!(euclid_dist(&p1, &p2), 5.0);
++}
++#[test]
++fn test_sort() {
++    let mut vec = vec![
++        Point::new(10.0, 10.0),
++        Point::new(9.0, 9.0),
++        Point::new(8.0, 8.0),
++        Point::new(7.0, 7.0),
++        Point::new(6.0, 6.0),
++        Point::new(5.0, 5.0),
++        Point::new(4.0, 4.0),
++        Point::new(3.0, 3.0),
++        Point::new(2.0, 2.0),
++        Point::new(1.0, 1.0),
++        Point::new(0.0, 0.0),
++    ];
++    let test_vec = vec![
++        Point::new(0.0, 0.0),
++        Point::new(1.0, 1.0),
++        Point::new(2.0, 2.0),
++        Point::new(3.0, 3.0),
++        Point::new(4.0, 4.0),
++        Point::new(5.0, 5.0),
++        Point::new(6.0, 6.0),
++        Point::new(7.0, 7.0),
++        Point::new(8.0, 8.0),
++        Point::new(9.0, 9.0),
++        Point::new(10.0, 10.0),
++    ];
++    sort(&mut vec);
++    for i in 0..vec.len() {
++        assert_eq!(vec[i], test_vec[i]);
++    }
++}
+diff --git a/tests/test_pixel.rs b/tests/test_pixel.rs
+new file mode 100644
+index 0000000..93fc1bc
+--- /dev/null
++++ b/tests/test_pixel.rs
+@@ -0,0 +1,22 @@
++#[cfg(test)]
++use generative::canvas::Canvas;
++use generative::Pixel;
++use generative::Point;
++
++#[test]
++fn test_pixel_init() {
++    let p = Point::new(10.0, 12.0);
++    let c = (255, 128, 134, 255);
++    let px1 = Pixel::new(p, c);
++    assert_eq!(px1.get_color(), c);
++    assert_eq!(px1.get_point(), p);
++}
++
++#[test]
++fn test_within_canvas() {
++    let ctx = Canvas::new(512, 512);
++    let p = Point::new(10.0, 12.0);
++    let c = (255, 128, 134, 255);
++    let px1 = Pixel::new(p, c);
++    assert_eq!(px1.is_within_canvas(&ctx), true);
++}
+diff --git a/tests/test_point.rs b/tests/test_point.rs
+new file mode 100644
+index 0000000..9642a02
+--- /dev/null
++++ b/tests/test_point.rs
+@@ -0,0 +1,31 @@
++#[cfg(test)]
++use generative::Point;
++#[test]
++fn test_point_init() {
++    let p1 = Point::new(5.0, 6.0);
++    assert_eq!(p1.get_x(), 5.0);
++    assert_eq!(p1.get_y(), 6.0);
++}
++#[test]
++fn test_from() {
++    let p1 = Point::from((5.0, 6.0));
++    assert_eq!(p1.get_x(), 5.0);
++    assert_eq!(p1.get_y(), 6.0);
++}
++#[test]
++fn test_eq() {
++    let p1 = Point::new(5.0, 6.0);
++    let p2 = Point::from((5.0, 6.0));
++    assert_eq!(p1, p2);
++}
++#[test]
++fn test_ord() {
++    let p1 = Point::new(5.0, 6.0);
++    let p2 = Point::new(2.0, 3.0);
++    assert_eq!(p1 < p2, false);
++}
++#[test]
++fn test_unit_vec() {
++    let p1 = Point::new(3.0, 4.0);
++    assert_eq!(p1.get_unit_vec(), Point::from((0.6, 0.8)));
++}
+diff --git a/tests/test_shape_aa_transforms.rs b/tests/test_shape_aa_transforms.rs
+index a9253f2..3287483 100644
+--- a/tests/test_shape_aa_transforms.rs
++++ b/tests/test_shape_aa_transforms.rs
+@@ -2,13 +2,14 @@
+ use generative::canvas::Canvas;
+ use generative::shape_aa::shape2d;
+ use generative::Angle;
++use generative::Point;
+ use generative::Transform;
+ #[test]
+ fn test_line_aa_xy_translation() {
+     let mut canvas = Canvas::new(512, 512);
+     canvas.fill((0, 0, 0, 255));
+-    let points = vec![(128.0, 128.0), (384.0, 384.0)];
+-    let color = (242_u8, 145_u8, 10_u8, 255_u8);
++    let points = vec![Point::new(128.0, 128.0), Point::new(384.0, 384.0)];
++    let color = (242, 145, 10, 255);
+     let mut line = shape2d::Line::new(points, color, 1, &canvas);
+     line.draw(&mut canvas);
+     line.transform(Transform::TRANSLATE(10.0, 100.0), &canvas);
+@@ -19,13 +20,13 @@ fn test_line_aa_xy_translation() {
+ fn test_line_aa_xy_rotation() {
+     let mut canvas = Canvas::new(512, 512);
+     canvas.fill((0, 0, 0, 255));
+-    let points = vec![(128.0, 128.0), (128.0, 256.0)];
+-    let color = (242_u8, 145_u8, 10_u8, 255_u8);
++    let points = vec![Point::new(128.0, 128.0), Point::new(128.0, 256.0)];
++    let color = (242, 145, 10, 255);
+     let mut line = shape2d::Line::new(points, color, 1, &canvas);
+ 
+     let mut deg = 0.0;
+     while deg <= 360.0 {
+-        line.transform(Transform::ROTATE(256.0, 256.0, Angle::DEGREE(1.0)), &canvas);
++        line.transform(Transform::ROTATE(Point::new(256.0, 256.0), Angle::DEGREE(1.0)), &canvas);
+         line.draw(&mut canvas);
+         deg += 1.0;
+     }
+@@ -35,11 +36,11 @@ fn test_line_aa_xy_rotation() {
+ fn test_line_aa_shear_x() {
+     let mut canvas = Canvas::new(512, 512);
+     canvas.fill((0, 0, 0, 255));
+-    let points = vec![(128.0, 128.0), (128.0, 256.0)];
++    let points = vec![Point::new(128.0, 128.0), Point::new(128.0, 256.0)];
+     let color = (242_u8, 145_u8, 10_u8, 255_u8);
+     let mut line = shape2d::Line::new(points, color, 1, &canvas);
+     line.draw(&mut canvas);
+-    line.transform(Transform::ShearX(0.0, 0.0, 1.2), &canvas);
++    line.transform(Transform::ShearX(Point::new(0.0, 0.0), 1.2), &canvas);
+     line.draw(&mut canvas);
+     canvas.save_as_image("tests/outputs/line_aa_ShearX.png");
+ }
+@@ -47,11 +48,11 @@ fn test_line_aa_shear_x() {
+ fn test_line_aa_shear_y() {
+     let mut canvas = Canvas::new(512, 512);
+     canvas.fill((0, 0, 0, 255));
+-    let points = vec![(32.0, 256.0), (128.0, 256.0)];
++    let points = vec![Point::new(32.0, 256.0), Point::new(128.0, 256.0)];
+     let color = (242_u8, 145_u8, 10_u8, 255_u8);
+     let mut line = shape2d::Line::new(points, color, 1, &canvas);
+     line.draw(&mut canvas);
+-    line.transform(Transform::ShearY(0.0, 0.0, 1.2), &canvas);
++    line.transform(Transform::ShearY(Point::new(0.0, 0.0), 1.2), &canvas);
+     line.draw(&mut canvas);
+     canvas.save_as_image("tests/outputs/line_aa_ShearY.png");
+ }
+@@ -59,8 +60,8 @@ fn test_line_aa_shear_y() {
+ fn test_rectangle_aa_translation() {
+     let mut canvas = Canvas::new(512, 512);
+     canvas.fill((0, 0, 0, 255));
+-    let points: [(f32, f32); 2] = [(128.0, 128.0), (384.0, 384.0)];
+-    let color = (242_u8, 45_u8, 210_u8, 255_u8);
++    let points = [Point::new(128.0, 128.0), Point::new(384.0, 384.0)];
++    let color = (242, 45, 210, 255);
+     let mut rect = shape2d::Rectangle::new(points, color, 1, &canvas);
+     rect.draw(&mut canvas);
+     rect.transform(Transform::TRANSLATE(10.0, 100.0), &canvas);
+@@ -71,12 +72,12 @@ fn test_rectangle_aa_translation() {
+ fn test_rectangle_aa_rotation() {
+     let mut canvas = Canvas::new(512, 512);
+     canvas.fill((0, 0, 0, 255));
+-    let points: [(f32, f32); 2] = [(128.0, 64.0), (384.0, 448.0)];
++    let points = [Point::new(128.0, 64.0), Point::new(384.0, 448.0)];
+     let color = (0_u8, 255_u8, 255_u8, 255_u8);
+     let mut rect = shape2d::Rectangle::new(points, color, 1, &canvas);
+ 
+     for i in (0..64).step_by(2) {
+-        rect.transform(Transform::ROTATE(256.0, 256.0, Angle::DEGREE(1.0)), &canvas);
++        rect.transform(Transform::ROTATE(Point::new(256.0, 256.0), Angle::DEGREE(1.0)), &canvas);
+         rect.set_color((i * 3, 255 - i, 255, 255));
+         rect.draw(&mut canvas);
+     }
+@@ -86,11 +87,11 @@ fn test_rectangle_aa_rotation() {
+ fn test_rectangle_aa_shear_x() {
+     let mut canvas = Canvas::new(512, 512);
+     canvas.fill((0, 0, 0, 255));
+-    let points: [(f32, f32); 2] = [(128.0, 128.0), (384.0, 384.0)];
++    let points = [Point::new(128.0, 128.0), Point::new(384.0, 384.0)];
+     let color = (0_u8, 255_u8, 255_u8, 255_u8);
+     let mut rect = shape2d::Rectangle::new(points, color, 1, &canvas);
+     rect.draw(&mut canvas);
+-    rect.transform(Transform::ShearX(256.0, 0.0, 0.25), &canvas);
++    rect.transform(Transform::ShearX(Point::new(256.0, 0.0), 0.25), &canvas);
+     rect.set_color((182, 25, 210, 255));
+     rect.draw(&mut canvas);
+     canvas.save_as_image("tests/outputs/rectangle_aa_ShearX.png");
+@@ -99,11 +100,11 @@ fn test_rectangle_aa_shear_x() {
+ fn test_rectangle_aa_shear_y() {
+     let mut canvas = Canvas::new(512, 512);
+     canvas.fill((0, 0, 0, 255));
+-    let points: [(f32, f32); 2] = [(128.0, 128.0), (384.0, 384.0)];
++    let points = [Point::new(128.0, 128.0), Point::new(384.0, 384.0)];
+     let color = (0_u8, 255_u8, 255_u8, 255_u8);
+     let mut rect = shape2d::Rectangle::new(points, color, 1, &canvas);
+     rect.draw(&mut canvas);
+-    rect.transform(Transform::ShearY(256.0, 0.0, 0.25), &canvas);
++    rect.transform(Transform::ShearY(Point::new(256.0, 0.0), 0.25), &canvas);
+     rect.set_color((182, 25, 210, 255));
+     rect.draw(&mut canvas);
+     canvas.save_as_image("tests/outputs/rectangle_aa_ShearY.png");
+@@ -112,7 +113,7 @@ fn test_rectangle_aa_shear_y() {
+ fn test_square_aa_translation() {
+     let mut canvas = Canvas::new(512, 512);
+     canvas.fill((0, 0, 0, 255));
+-    let points: (f32, f32) = (128.0, 128.0);
++    let points = Point::new(128.0, 128.0);
+     let color = (242_u8, 45_u8, 210_u8, 255_u8);
+     let mut sqr = shape2d::Square::new(points, 256.0, color, 1, &canvas);
+     sqr.draw(&mut canvas);
+@@ -124,11 +125,11 @@ fn test_square_aa_translation() {
+ fn test_square_aa_rotation() {
+     let mut canvas = Canvas::new(512, 512);
+     canvas.fill((0, 0, 0, 255));
+-    let points: (f32, f32) = (128.0, 128.0);
++    let points = Point::new(128.0, 128.0);
+     let color = (242_u8, 45_u8, 210_u8, 255_u8);
+     let mut sqr = shape2d::Square::new(points, 256.0, color, 1, &canvas);
+     for i in (0..64).step_by(2) {
+-        sqr.transform(Transform::ROTATE(256.0, 256.0, Angle::DEGREE(1.0)), &canvas);
++        sqr.transform(Transform::ROTATE(Point::new(256.0, 256.0), Angle::DEGREE(1.0)), &canvas);
+         sqr.set_color((i * 3, 255 - i, 255, 255));
+         sqr.draw(&mut canvas);
+     }
+@@ -138,11 +139,11 @@ fn test_square_aa_rotation() {
+ fn test_square_aa_shear_x() {
+     let mut canvas = Canvas::new(512, 512);
+     canvas.fill((0, 0, 0, 255));
+-    let points: (f32, f32) = (128.0, 128.0);
++    let points = Point::new(128.0, 128.0);
+     let color = (242_u8, 45_u8, 210_u8, 255_u8);
+     let mut sqr = shape2d::Square::new(points, 256.0, color, 1, &canvas);
+     sqr.draw(&mut canvas);
+-    sqr.transform(Transform::ShearX(256.0, 0.0, 0.25), &canvas);
++    sqr.transform(Transform::ShearX(Point::new(256.0, 0.0), 0.25), &canvas);
+     sqr.set_color((182, 25, 210, 255));
+     sqr.draw(&mut canvas);
+     canvas.save_as_image("tests/outputs/square_aa_ShearX.png");
+@@ -151,11 +152,11 @@ fn test_square_aa_shear_x() {
+ fn test_square_aa_shear_y() {
+     let mut canvas = Canvas::new(512, 512);
+     canvas.fill((0, 0, 0, 255));
+-    let points: (f32, f32) = (128.0, 128.0);
++    let points = Point::new(128.0, 128.0);
+     let color = (242_u8, 45_u8, 210_u8, 255_u8);
+     let mut sqr = shape2d::Square::new(points, 256.0, color, 1, &canvas);
+     sqr.draw(&mut canvas);
+-    sqr.transform(Transform::ShearY(256.0, 0.0, 0.25), &canvas);
++    sqr.transform(Transform::ShearY(Point::new(256.0, 0.0), 0.25), &canvas);
+     sqr.set_color((182, 25, 210, 255));
+     sqr.draw(&mut canvas);
+     canvas.save_as_image("tests/outputs/square_aa_ShearY.png");
+@@ -165,11 +166,11 @@ fn test_polygon_aa_translation() {
+     let mut canvas = Canvas::new(512, 512);
+     canvas.fill((0, 0, 0, 255));
+     let points = vec![
+-        (80.0, 240.0),
+-        (140.0, 180.0),
+-        (100.0, 80.0),
+-        (60.0, 80.0),
+-        (20.0, 180.0),
++        Point::new(80.0, 240.0),
++        Point::new(140.0, 180.0),
++        Point::new(100.0, 80.0),
++        Point::new(60.0, 80.0),
++        Point::new(20.0, 180.0),
+     ];
+     let color = (242_u8, 45_u8, 210_u8, 255_u8);
+     let mut penta = shape2d::Polygon::new(points, color, 1, &canvas);
+@@ -184,18 +185,18 @@ fn test_polygon_aa_rotation() {
+     let mut canvas = Canvas::new(512, 512);
+     canvas.fill((0, 0, 0, 255));
+     let points = vec![
+-        (80.0, 240.0),
+-        (140.0, 180.0),
+-        (100.0, 80.0),
+-        (60.0, 80.0),
+-        (20.0, 180.0),
++        Point::new(80.0, 240.0),
++        Point::new(140.0, 180.0),
++        Point::new(100.0, 80.0),
++        Point::new(60.0, 80.0),
++        Point::new(20.0, 180.0),
+     ];
+     let color = (242_u8, 45_u8, 210_u8, 255_u8);
+     let mut penta = shape2d::Polygon::new(points, color, 1, &canvas);
+     penta.set_color((182, 225, 21, 255));
+     penta.transform(Transform::TRANSLATE(384.0, 128.0), &canvas);
+     for i in 0..64 {
+-        penta.transform(Transform::ROTATE(256.0, 0.0, Angle::DEGREE(1.0)), &canvas);
++        penta.transform(Transform::ROTATE(Point::new(256.0, 0.0), Angle::DEGREE(1.0)), &canvas);
+         penta.set_color((255, i * 3, 0, 255));
+         penta.draw(&mut canvas);
+     }
+@@ -206,18 +207,18 @@ fn test_polygon_aa_shear_x() {
+     let mut canvas = Canvas::new(512, 512);
+     canvas.fill((0, 0, 0, 255));
+     let points = vec![
+-        (80.0, 240.0),
+-        (140.0, 180.0),
+-        (100.0, 80.0),
+-        (60.0, 80.0),
+-        (20.0, 180.0),
++        Point::new(80.0, 240.0),
++        Point::new(140.0, 180.0),
++        Point::new(100.0, 80.0),
++        Point::new(60.0, 80.0),
++        Point::new(20.0, 180.0),
+     ];
+     let color = (242_u8, 45_u8, 210_u8, 255_u8);
+     let mut penta = shape2d::Polygon::new(points, color, 1, &canvas);
+     penta.set_color((182, 225, 21, 255));
+     penta.transform(Transform::TRANSLATE(128.0, 128.0), &canvas);
+     penta.draw(&mut canvas);
+-    penta.transform(Transform::ShearX(256.0, 256.0, 1.2), &canvas);
++    penta.transform(Transform::ShearX(Point::new(256.0, 256.0), 1.2), &canvas);
+     penta.set_color((182, 56, 210, 255));
+     penta.draw(&mut canvas);
+     canvas.save_as_image("tests/outputs/polygon_aa_shearX.png");
+@@ -227,18 +228,18 @@ fn test_polygon_aa_shear_y() {
+     let mut canvas = Canvas::new(512, 512);
+     canvas.fill((0, 0, 0, 255));
+     let points = vec![
+-        (80.0, 240.0),
+-        (140.0, 180.0),
+-        (100.0, 80.0),
+-        (60.0, 80.0),
+-        (20.0, 180.0),
++        Point::new(80.0, 240.0),
++        Point::new(140.0, 180.0),
++        Point::new(100.0, 80.0),
++        Point::new(60.0, 80.0),
++        Point::new(20.0, 180.0),
+     ];
+     let color = (242_u8, 45_u8, 210_u8, 255_u8);
+     let mut penta = shape2d::Polygon::new(points, color, 1, &canvas);
+     penta.set_color((182, 225, 21, 255));
+     penta.transform(Transform::TRANSLATE(128.0, 128.0), &canvas);
+     penta.draw(&mut canvas);
+-    penta.transform(Transform::ShearY(256.0, 256.0, 1.2), &canvas);
++    penta.transform(Transform::ShearY(Point::new(256.0, 256.0), 1.2), &canvas);
+     penta.set_color((182, 56, 210, 255));
+     penta.draw(&mut canvas);
+     canvas.save_as_image("tests/outputs/polygon_aa_shearY.png");
+@@ -248,7 +249,7 @@ fn test_circle_aa_translate() {
+     let mut canvas = Canvas::new(512, 512);
+     canvas.fill((0, 0, 0, 255));
+     let color = (242_u8, 45_u8, 210_u8, 255_u8);
+-    let mut circle = shape2d::Circle::new((128.0, 128.0), 175.0, color, 1);
++    let mut circle = shape2d::Circle::new(Point::new(128.0, 128.0), 175.0, color, 1);
+     circle.draw(&mut canvas);
+     circle.transform(Transform::TRANSLATE(128.0, 128.0));
+     circle.set_color((12, 255, 10, 255));
+@@ -260,11 +261,11 @@ fn test_circle_aa_rotate() {
+     let mut canvas = Canvas::new(512, 512);
+     canvas.fill((0, 0, 0, 255));
+     let color = (242_u8, 45_u8, 210_u8, 255_u8);
+-    let mut circle = shape2d::Circle::new((128.0, 128.0), 175.0, color, 1);
++    let mut circle = shape2d::Circle::new(Point::new(128.0, 128.0), 175.0, color, 1);
+     circle.transform(Transform::TRANSLATE(128.0, 128.0));
+     circle.draw(&mut canvas);
+     for i in (0..64).step_by(4) {
+-        circle.transform(Transform::ROTATE(0.0, 0.0, Angle::DEGREE(1.0)));
++        circle.transform(Transform::ROTATE(Point::new(0.0, 0.0), Angle::DEGREE(1.0)));
+         circle.set_color((255, 0, i * 3, 255));
+         circle.draw(&mut canvas);
+     }
+@@ -276,10 +277,10 @@ fn test_circle_aa_shear_x() {
+     let mut canvas = Canvas::new(512, 512);
+     canvas.fill((0, 0, 0, 255));
+     let color = (242_u8, 45_u8, 210_u8, 255_u8);
+-    let mut circle = shape2d::Circle::new((128.0, 128.0), 175.0, color, 1);
++    let mut circle = shape2d::Circle::new(Point::new(128.0, 128.0), 175.0, color, 1);
+     circle.transform(Transform::TRANSLATE(128.0, 128.0));
+     circle.draw(&mut canvas);
+-    circle.transform(Transform::ShearX(0.0, 0.0, 0.5));
++    circle.transform(Transform::ShearX(Point::new(0.0, 0.0), 0.5));
+     circle.set_color((12, 185, 10, 255));
+     circle.draw(&mut canvas);
+     canvas.save_as_image("tests/outputs/circle_aa_shearX.png");
+@@ -290,10 +291,10 @@ fn test_circle_aa_shear_y() {
+     let mut canvas = Canvas::new(512, 512);
+     canvas.fill((0, 0, 0, 255));
+     let color = (242_u8, 45_u8, 210_u8, 255_u8);
+-    let mut circle = shape2d::Circle::new((128.0, 128.0), 175.0, color, 1);
++    let mut circle = shape2d::Circle::new(Point::new(128.0, 128.0), 175.0, color, 1);
+     circle.transform(Transform::TRANSLATE(128.0, 128.0));
+     circle.draw(&mut canvas);
+-    circle.transform(Transform::ShearY(0.0, 0.0, 0.5));
++    circle.transform(Transform::ShearY(Point::new(0.0, 0.0), 0.5));
+     circle.set_color((12, 185, 10, 255));
+     circle.draw(&mut canvas);
+     canvas.save_as_image("tests/outputs/circle_aa_shearY.png");
+diff --git a/tests/test_shape_transforms.rs b/tests/test_shape_transforms.rs
+index c96d669..0ebab59 100644
+--- a/tests/test_shape_transforms.rs
++++ b/tests/test_shape_transforms.rs
+@@ -2,13 +2,14 @@
+ use generative::canvas::Canvas;
+ use generative::shape::shape2d;
+ use generative::Angle;
++use generative::Point;
+ use generative::Transform;
+ use photon_rs::native::save_image;
+ #[test]
+ fn test_line_xy_translation() {
+     let mut canvas = Canvas::new(512, 512);
+     canvas.fill((0, 0, 0, 255));
+-    let points = vec![(128.0, 128.0), (384.0, 384.0)];
++    let points = vec![Point::new(128.0, 128.0), Point::new(384.0, 384.0)];
+     let color = (242_u8, 145_u8, 10_u8, 255_u8);
+     let mut line = shape2d::Line::new(points, color, 1);
+     line.draw(&mut canvas);
+@@ -20,13 +21,13 @@ fn test_line_xy_translation() {
+ fn test_line_xy_rotation() {
+     let mut canvas = Canvas::new(512, 512);
+     canvas.fill((0, 0, 0, 255));
+-    let points = vec![(128.0, 128.0), (128.0, 256.0)];
++    let points = vec![Point::new(128.0, 128.0), Point::new(128.0, 256.0)];
+     let color = (242_u8, 145_u8, 10_u8, 255_u8);
+     let mut line = shape2d::Line::new(points, color, 1);
+ 
+     let mut deg = 0.0;
+     while deg <= 360.0 {
+-        line.transform(Transform::ROTATE(256.0, 256.0, Angle::DEGREE(1.0)));
++        line.transform(Transform::ROTATE(Point::new(256.0, 256.0), Angle::DEGREE(1.0)));
+         line.draw(&mut canvas);
+         deg += 1.0;
+     }
+@@ -36,11 +37,11 @@ fn test_line_xy_rotation() {
+ fn test_line_shear_x() {
+     let mut canvas = Canvas::new(512, 512);
+     canvas.fill((0, 0, 0, 255));
+-    let points = vec![(128.0, 128.0), (128.0, 256.0)];
++    let points = vec![Point::new(128.0, 128.0), Point::new(128.0, 256.0)];
+     let color = (242_u8, 145_u8, 10_u8, 255_u8);
+     let mut line = shape2d::Line::new(points, color, 1);
+     line.draw(&mut canvas);
+-    line.transform(Transform::ShearX(0.0, 0.0, 1.2));
++    line.transform(Transform::ShearX(Point::new(0.0, 0.0), 1.2));
+     line.draw(&mut canvas);
+     save_image(Canvas::to_photon(&canvas), "tests/outputs/canvas_line_ShearX.png");
+ }
+@@ -48,11 +49,11 @@ fn test_line_shear_x() {
+ fn test_line_shear_y() {
+     let mut canvas = Canvas::new(512, 512);
+     canvas.fill((0, 0, 0, 255));
+-    let points = vec![(32.0, 256.0), (128.0, 256.0)];
++    let points = vec![Point::new(32.0, 256.0), Point::new(128.0, 256.0)];
+     let color = (242_u8, 145_u8, 10_u8, 255_u8);
+     let mut line = shape2d::Line::new(points, color, 1);
+     line.draw(&mut canvas);
+-    line.transform(Transform::ShearY(0.0, 0.0, 1.2));
++    line.transform(Transform::ShearY(Point::new(0.0, 0.0), 1.2));
+     line.draw(&mut canvas);
+     save_image(Canvas::to_photon(&canvas), "tests/outputs/canvas_line_ShearY.png");
+ }
+@@ -60,7 +61,7 @@ fn test_line_shear_y() {
+ fn test_rectangle_translation() {
+     let mut canvas = Canvas::new(512, 512);
+     canvas.fill((0, 0, 0, 255));
+-    let points: [(f32, f32); 2] = [(128.0, 128.0), (384.0, 384.0)];
++    let points = [Point::new(128.0, 128.0), Point::new(384.0, 384.0)];
+     let color = (242_u8, 45_u8, 210_u8, 255_u8);
+     let mut rect = shape2d::Rectangle::new(points, color, 1);
+     rect.draw(&mut canvas);
+@@ -75,13 +76,13 @@ fn test_rectangle_translation() {
+ fn test_rectangle_rotation() {
+     let mut canvas = Canvas::new(512, 512);
+     canvas.fill((0, 0, 0, 255));
+-    let points: [(f32, f32); 2] = [(128.0, 64.0), (384.0, 448.0)];
++    let points = [Point::new(128.0, 64.0), Point::new(384.0, 448.0)];
+     let color = (0_u8, 255_u8, 255_u8, 255_u8);
+     let mut rect = shape2d::Rectangle::new(points, color, 1);
+     // rect.draw(&mut canvas);
+ 
+     for i in (0..64).step_by(2) {
+-        rect.transform(Transform::ROTATE(256.0, 256.0, Angle::DEGREE(1.0)));
++        rect.transform(Transform::ROTATE(Point::new(256.0, 256.0), Angle::DEGREE(1.0)));
+         rect.set_color((i * 3, 255 - i, 255, 255));
+         rect.draw(&mut canvas);
+     }
+@@ -91,11 +92,11 @@ fn test_rectangle_rotation() {
+ fn test_rectangle_shear_x() {
+     let mut canvas = Canvas::new(512, 512);
+     canvas.fill((0, 0, 0, 255));
+-    let points: [(f32, f32); 2] = [(128.0, 128.0), (384.0, 384.0)];
++    let points = [Point::new(128.0, 128.0), Point::new(384.0, 384.0)];
+     let color = (0_u8, 255_u8, 255_u8, 255_u8);
+     let mut rect = shape2d::Rectangle::new(points, color, 1);
+     rect.draw(&mut canvas);
+-    rect.transform(Transform::ShearX(256.0, 0.0, 0.25));
++    rect.transform(Transform::ShearX(Point::new(256.0, 0.0), 0.25));
+     rect.set_color((182, 25, 210, 255));
+     rect.draw(&mut canvas);
+     save_image(Canvas::to_photon(&canvas), "tests/outputs/canvas_rectangle_ShearX.png");
+@@ -104,11 +105,11 @@ fn test_rectangle_shear_x() {
+ fn test_rectangle_shear_y() {
+     let mut canvas = Canvas::new(512, 512);
+     canvas.fill((0, 0, 0, 255));
+-    let points: [(f32, f32); 2] = [(128.0, 128.0), (384.0, 384.0)];
++    let points = [Point::new(128.0, 128.0), Point::new(384.0, 384.0)];
+     let color = (0_u8, 255_u8, 255_u8, 255_u8);
+     let mut rect = shape2d::Rectangle::new(points, color, 1);
+     rect.draw(&mut canvas);
+-    rect.transform(Transform::ShearY(256.0, 0.0, 0.25));
++    rect.transform(Transform::ShearY(Point::new(256.0, 0.0), 0.25));
+     rect.set_color((182, 25, 210, 255));
+     rect.draw(&mut canvas);
+     save_image(Canvas::to_photon(&canvas), "tests/outputs/canvas_rectangle_ShearY.png");
+@@ -117,7 +118,7 @@ fn test_rectangle_shear_y() {
+ fn test_square_translation() {
+     let mut canvas = Canvas::new(512, 512);
+     canvas.fill((0, 0, 0, 255));
+-    let points: (f32, f32) = (128.0, 128.0);
++    let points = Point::new(128.0, 128.0);
+     let color = (242_u8, 45_u8, 210_u8, 255_u8);
+     let mut sqr = shape2d::Square::new(points, 256.0, color, 1);
+     sqr.draw(&mut canvas);
+@@ -129,13 +130,12 @@ fn test_square_translation() {
+ fn test_square_rotation() {
+     let mut canvas = Canvas::new(512, 512);
+     canvas.fill((0, 0, 0, 255));
+-    let points: (f32, f32) = (128.0, 128.0);
++    let points = Point::new(128.0, 128.0);
+     let color = (242_u8, 45_u8, 210_u8, 255_u8);
+     let mut sqr = shape2d::Square::new(points, 256.0, color, 1);
+-    // rect.draw(&mut canvas);
+ 
+     for i in (0..64).step_by(2) {
+-        sqr.transform(Transform::ROTATE(256.0, 256.0, Angle::DEGREE(1.0)));
++        sqr.transform(Transform::ROTATE(Point::new(256.0, 256.0), Angle::DEGREE(1.0)));
+         sqr.set_color((i * 3, 255 - i, 255, 255));
+         sqr.draw(&mut canvas);
+     }
+@@ -145,11 +145,11 @@ fn test_square_rotation() {
+ fn test_square_shear_x() {
+     let mut canvas = Canvas::new(512, 512);
+     canvas.fill((0, 0, 0, 255));
+-    let points: (f32, f32) = (128.0, 128.0);
++    let points = Point::new(128.0, 128.0);
+     let color = (242_u8, 45_u8, 210_u8, 255_u8);
+     let mut sqr = shape2d::Square::new(points, 256.0, color, 1);
+     sqr.draw(&mut canvas);
+-    sqr.transform(Transform::ShearX(256.0, 0.0, 0.25));
++    sqr.transform(Transform::ShearX(Point::new(256.0, 0.0), 0.25));
+     sqr.set_color((182, 25, 210, 255));
+     sqr.draw(&mut canvas);
+     save_image(Canvas::to_photon(&canvas), "tests/outputs/canvas_square_ShearX.png");
+@@ -158,12 +158,12 @@ fn test_square_shear_x() {
+ fn test_square_shear_y() {
+     let mut canvas = Canvas::new(512, 512);
+     canvas.fill((0, 0, 0, 255));
+-    let points: (f32, f32) = (128.0, 128.0);
++    let points = Point::new(128.0, 128.0);
+     let color = (242_u8, 45_u8, 210_u8, 255_u8);
+     let mut sqr = shape2d::Square::new(points, 256.0, color, 1);
+     sqr.draw(&mut canvas);
+-    sqr.transform(Transform::ShearY(256.0, 0.0, 0.25));
+-    sqr.set_color((182, 25, 210, 255));
++    sqr.transform(Transform::ShearY(Point::new(256.0, 0.0), 0.25));
++    sqr.set_color((18, 125, 210, 255));
+     sqr.draw(&mut canvas);
+     save_image(Canvas::to_photon(&canvas), "tests/outputs/canvas_square_ShearY.png");
+ }
+@@ -172,11 +172,11 @@ fn test_polygon_translation() {
+     let mut canvas = Canvas::new(512, 512);
+     canvas.fill((0, 0, 0, 255));
+     let points = vec![
+-        (80.0, 240.0),
+-        (140.0, 180.0),
+-        (100.0, 80.0),
+-        (60.0, 80.0),
+-        (20.0, 180.0),
++        Point::new(80.0, 240.0),
++        Point::new(140.0, 180.0),
++        Point::new(100.0, 80.0),
++        Point::new(60.0, 80.0),
++        Point::new(20.0, 180.0),
+     ];
+     let color = (242_u8, 45_u8, 210_u8, 255_u8);
+     let mut penta = shape2d::Polygon::new(points, color, 1);
+@@ -191,18 +191,18 @@ fn test_polygon_rotation() {
+     let mut canvas = Canvas::new(512, 512);
+     canvas.fill((0, 0, 0, 255));
+     let points = vec![
+-        (80.0, 240.0),
+-        (140.0, 180.0),
+-        (100.0, 80.0),
+-        (60.0, 80.0),
+-        (20.0, 180.0),
++        Point::new(80.0, 240.0),
++        Point::new(140.0, 180.0),
++        Point::new(100.0, 80.0),
++        Point::new(60.0, 80.0),
++        Point::new(20.0, 180.0),
+     ];
+     let color = (242_u8, 45_u8, 210_u8, 255_u8);
+     let mut penta = shape2d::Polygon::new(points, color, 1);
+     penta.set_color((182, 225, 21, 255));
+     penta.transform(Transform::TRANSLATE(384.0, 128.0));
+     for i in 0..64 {
+-        penta.transform(Transform::ROTATE(256.0, 0.0, Angle::DEGREE(1.0)));
++        penta.transform(Transform::ROTATE(Point::new(256.0, 0.0), Angle::DEGREE(1.0)));
+         penta.set_color((255, i * 3, 0, 255));
+         penta.draw(&mut canvas);
+     }
+@@ -213,18 +213,18 @@ fn test_polygon_shear_x() {
+     let mut canvas = Canvas::new(512, 512);
+     canvas.fill((0, 0, 0, 255));
+     let points = vec![
+-        (80.0, 240.0),
+-        (140.0, 180.0),
+-        (100.0, 80.0),
+-        (60.0, 80.0),
+-        (20.0, 180.0),
++        Point::new(80.0, 240.0),
++        Point::new(140.0, 180.0),
++        Point::new(100.0, 80.0),
++        Point::new(60.0, 80.0),
++        Point::new(20.0, 180.0),
+     ];
+     let color = (242_u8, 45_u8, 210_u8, 255_u8);
+     let mut penta = shape2d::Polygon::new(points, color, 1);
+     penta.set_color((182, 225, 21, 255));
+     penta.transform(Transform::TRANSLATE(128.0, 128.0));
+     penta.draw(&mut canvas);
+-    penta.transform(Transform::ShearX(256.0, 256.0, 1.2));
++    penta.transform(Transform::ShearX(Point::new(256.0, 256.0), 1.2));
+     penta.set_color((182, 56, 210, 255));
+     penta.draw(&mut canvas);
+     save_image(Canvas::to_photon(&canvas), "tests/outputs/canvas_polygon_shearX.png");
+@@ -234,18 +234,18 @@ fn test_polygon_shear_y() {
+     let mut canvas = Canvas::new(512, 512);
+     canvas.fill((0, 0, 0, 255));
+     let points = vec![
+-        (80.0, 240.0),
+-        (140.0, 180.0),
+-        (100.0, 80.0),
+-        (60.0, 80.0),
+-        (20.0, 180.0),
++        Point::new(80.0, 240.0),
++        Point::new(140.0, 180.0),
++        Point::new(100.0, 80.0),
++        Point::new(60.0, 80.0),
++        Point::new(20.0, 180.0),
+     ];
+     let color = (242_u8, 45_u8, 210_u8, 255_u8);
+     let mut penta = shape2d::Polygon::new(points, color, 1);
+     penta.set_color((182, 225, 21, 255));
+     penta.transform(Transform::TRANSLATE(128.0, 128.0));
+     penta.draw(&mut canvas);
+-    penta.transform(Transform::ShearY(256.0, 256.0, 1.2));
++    penta.transform(Transform::ShearY(Point::new(256.0, 256.0), 1.2));
+     penta.set_color((182, 56, 210, 255));
+     penta.draw(&mut canvas);
+     save_image(Canvas::to_photon(&canvas), "tests/outputs/canvas_polygon_shearY.png");
+@@ -255,7 +255,7 @@ fn test_circle_translate() {
+     let mut canvas = Canvas::new(512, 512);
+     canvas.fill((0, 0, 0, 255));
+     let color = (242_u8, 45_u8, 210_u8, 255_u8);
+-    let mut circle = shape2d::Circle::new((128.0, 128.0), 175.0, color, 1);
++    let mut circle = shape2d::Circle::new(Point::new(128.0, 128.0), 175.0, color, 1);
+     circle.draw(&mut canvas);
+     circle.transform(Transform::TRANSLATE(128.0, 128.0));
+     circle.set_color((12, 255, 10, 255));
+@@ -267,11 +267,11 @@ fn test_circle_rotate() {
+     let mut canvas = Canvas::new(512, 512);
+     canvas.fill((0, 0, 0, 255));
+     let color = (242_u8, 45_u8, 210_u8, 255_u8);
+-    let mut circle = shape2d::Circle::new((128.0, 128.0), 175.0, color, 1);
++    let mut circle = shape2d::Circle::new(Point::new(128.0, 128.0), 175.0, color, 1);
+     circle.transform(Transform::TRANSLATE(128.0, 128.0));
+     circle.draw(&mut canvas);
+     for i in (0..64).step_by(4) {
+-        circle.transform(Transform::ROTATE(0.0, 0.0, Angle::DEGREE(1.0)));
++        circle.transform(Transform::ROTATE(Point::new(0.0, 0.0), Angle::DEGREE(1.0)));
+         circle.set_color((255, 0, i * 3, 255));
+         circle.draw(&mut canvas);
+     }
+@@ -283,10 +283,10 @@ fn test_circle_shear_x() {
+     let mut canvas = Canvas::new(512, 512);
+     canvas.fill((0, 0, 0, 255));
+     let color = (242_u8, 45_u8, 210_u8, 255_u8);
+-    let mut circle = shape2d::Circle::new((128.0, 128.0), 175.0, color, 1);
++    let mut circle = shape2d::Circle::new(Point::new(128.0, 128.0), 175.0, color, 1);
+     circle.transform(Transform::TRANSLATE(128.0, 128.0));
+     circle.draw(&mut canvas);
+-    circle.transform(Transform::ShearX(0.0, 0.0, 0.5));
++    circle.transform(Transform::ShearX(Point::new(0.0, 0.0), 0.5));
+     circle.set_color((12, 185, 10, 255));
+     circle.draw(&mut canvas);
+     save_image(Canvas::to_photon(&canvas), "tests/outputs/canvas_circle_shearX.png");
+@@ -297,10 +297,10 @@ fn test_circle_shear_y() {
+     let mut canvas = Canvas::new(512, 512);
+     canvas.fill((0, 0, 0, 255));
+     let color = (242_u8, 45_u8, 210_u8, 255_u8);
+-    let mut circle = shape2d::Circle::new((128.0, 128.0), 175.0, color, 1);
++    let mut circle = shape2d::Circle::new(Point::new(128.0, 128.0), 175.0, color, 1);
+     circle.transform(Transform::TRANSLATE(128.0, 128.0));
+     circle.draw(&mut canvas);
+-    circle.transform(Transform::ShearY(0.0, 0.0, 0.5));
++    circle.transform(Transform::ShearY(Point::new(0.0, 0.0), 0.5));
+     circle.set_color((12, 185, 10, 255));
+     circle.draw(&mut canvas);
+     save_image(Canvas::to_photon(&canvas), "tests/outputs/canvas_circle_shearY.png");
+diff --git a/tests/test_shapes_aa.rs b/tests/test_shapes_aa.rs
+index f44a15f..486e3aa 100644
+--- a/tests/test_shapes_aa.rs
++++ b/tests/test_shapes_aa.rs
+@@ -1,13 +1,14 @@
+ #[cfg(test)]
+ use generative::canvas::Canvas;
+ use generative::shape_aa::shape2d;
++use generative::Point;
+ #[test]
+ fn test_line_aa() {
+     let mut canvas = Canvas::new(512, 512);
+     canvas.fill((255, 255, 255, 255));
+-    let points = vec![(301.25482, 29.72583), (29.72583, 301.25482)];
++    let points = vec![Point::new(27.25482, 29.72583), Point::new(29.72583, 301.25482)];
+     let color = (192, 2, 50, 255);
+-    let line = shape2d::Line::new(points, color, 1, &canvas);
++    let mut line = shape2d::Line::new(points, color, 1, &canvas);
+     line.draw(&mut canvas);
+     canvas.save_as_image("tests/outputs/line_aa.png");
+ }
+@@ -15,9 +16,9 @@ fn test_line_aa() {
+ fn test_rectangle_aa() {
+     let mut canvas = Canvas::new(512, 512);
+     canvas.fill((0, 0, 0, 255));
+-    let points: [(f32, f32); 2] = [(128.0, 128.0), (384.0, 384.0)];
++    let points = [Point::new(128.0, 128.0), Point::new(384.0, 384.0)];
+     let color = (0_u8, 255_u8, 255_u8, 255_u8);
+-    let rect = shape2d::Rectangle::new(points, color, 1, &canvas);
++    let mut rect = shape2d::Rectangle::new(points, color, 1, &canvas);
+     rect.draw(&mut canvas);
+     canvas.save_as_image("tests/outputs/rectangle_aa.png");
+ }
+@@ -25,9 +26,9 @@ fn test_rectangle_aa() {
+ fn test_square_aa() {
+     let mut canvas = Canvas::new(512, 512);
+     canvas.fill((0, 0, 0, 255));
+-    let points: (f32, f32) = (128.0, 128.0);
++    let points = Point::new(128.0, 128.0);
+     let color = (242_u8, 45_u8, 210_u8, 255_u8);
+-    let sqr = shape2d::Square::new(points, 256.0, color, 1, &canvas);
++    let mut sqr = shape2d::Square::new(points, 256.0, color, 1, &canvas);
+     sqr.draw(&mut canvas);
+     canvas.save_as_image("tests/outputs/square_aa.png");
+ }
+@@ -36,14 +37,14 @@ fn test_polygon_aa() {
+     let mut canvas = Canvas::new(512, 512);
+     canvas.fill((0, 0, 0, 255));
+     let points = vec![
+-        (80.0, 240.0),
+-        (140.0, 180.0),
+-        (100.0, 80.0),
+-        (60.0, 80.0),
+-        (20.0, 180.0),
++        Point::new(80.0, 240.0),
++        Point::new(140.0, 180.0),
++        Point::new(100.0, 80.0),
++        Point::new(60.0, 80.0),
++        Point::new(20.0, 180.0),
+     ];
+     let color = (242_u8, 45_u8, 210_u8, 255_u8);
+-    let penta = shape2d::Polygon::new(points, color, 1, &canvas);
++    let mut penta = shape2d::Polygon::new(points, color, 1, &canvas);
+     penta.draw(&mut canvas);
+     canvas.save_as_image("tests/outputs/polygon_aa.png");
+ }
+@@ -52,7 +53,7 @@ fn test_circle_aa() {
+     let mut canvas = Canvas::new(512, 512);
+     canvas.fill((0, 0, 0, 255));
+     let color = (242_u8, 45_u8, 210_u8, 255_u8);
+-    let circle = shape2d::Circle::new((128.0, 128.0), 175.0, color, 1);
++    let mut circle = shape2d::Circle::new(Point::new(128.0, 128.0), 175.0, color, 1);
+     circle.draw(&mut canvas);
+     canvas.save_as_image("tests/outputs/circle_aa.png");
+ }
+diff --git a/tests/test_transforms.rs b/tests/test_transforms.rs
+index 3f86bfe..b47b647 100644
+--- a/tests/test_transforms.rs
++++ b/tests/test_transforms.rs
+@@ -1,15 +1,15 @@
+ #[cfg(test)]
+ use generative::canvas::Canvas;
+ use generative::transforms;
+-use generative::Angle;
++use generative::{Angle, Point};
+ use photon_rs::native::save_image;
+ #[test]
+ fn test_translation() {
+     let mut canvas = Canvas::new(10, 10);
+     let x_pxl = 1_f32;
+     let y_pxl = 1_f32;
+-    let (x_pxl, y_pxl) = transforms::translate(x_pxl, y_pxl, 5.0, 5.0);
+-    canvas.set_pixel_at(x_pxl as usize, y_pxl as usize, (180, 56, 210, 255));
++    let point = transforms::translate(&Point::new(x_pxl, y_pxl), 5.0, 5.0);
++    canvas.set_pixel_at(point.get_x() as usize, point.get_y() as usize, (180, 56, 210, 255));
+     save_image(Canvas::to_photon(&canvas), "tests/outputs/canvas_translate_point.png");
+ }
+ 
+@@ -23,7 +23,13 @@ fn test_rotation() {
+ 
+     let mut i = 0.0;
+     while i <= 360.0 {
+-        let (x_pxl, y_pxl) = transforms::rotate(x_pxl, y_pxl, 511.0, 511.0, Angle::DEGREE(-1.0 * i as f32));
++        let point = transforms::rotate(
++            &Point::new(x_pxl, y_pxl),
++            &Point::new(511.0, 511.0),
++            Angle::DEGREE(-1.0 * i as f32),
++        );
++        let x_pxl = point.get_x();
++        let y_pxl = point.get_y();
+         canvas.set_pixel_at(x_pxl as usize, y_pxl as usize, (10, 156, 210, 255));
+         i += 0.1;
+     }
+@@ -36,9 +42,17 @@ fn test_shear_x() {
+     let y_pxl = 411_f32;
+     let mut i = 0.0;
+     while i <= 360.0 {
+-        let (x_pxl, y_pxl) = transforms::rotate(x_pxl, y_pxl, 311.0, 511.0, Angle::DEGREE(-1.0 * i as f32));
++        let point = transforms::rotate(
++            &Point::new(x_pxl, y_pxl),
++            &Point::new(311.0, 511.0),
++            Angle::DEGREE(-1.0 * i as f32),
++        );
++        let x_pxl = point.get_x();
++        let y_pxl = point.get_y();
+         canvas.set_pixel_at(x_pxl as usize, y_pxl as usize, (10, 156, 210, 255));
+-        let (x_pxl, y_pxl) = transforms::shear_x(x_pxl, y_pxl, 0.0, 0.0, 0.85);
++        let point = transforms::shear_x(&Point::new(x_pxl, y_pxl), &Point::new(0.0, 0.0), 0.85);
++        let x_pxl = point.get_x();
++        let y_pxl = point.get_y();
+         canvas.set_pixel_at(x_pxl as usize, y_pxl as usize, (180, 156, 10, 255));
+         i += 0.1;
+     }
+@@ -51,9 +65,17 @@ fn test_shear_y() {
+     let y_pxl = 411_f32;
+     let mut i = 0.0;
+     while i <= 360.0 {
+-        let (x_pxl, y_pxl) = transforms::rotate(x_pxl, y_pxl, 511.0, 311.0, Angle::DEGREE(-1.0 * i as f32));
++        let point = transforms::rotate(
++            &Point::new(x_pxl, y_pxl),
++            &Point::new(511.0, 311.0),
++            Angle::DEGREE(-1.0 * i as f32),
++        );
++        let x_pxl = point.get_x();
++        let y_pxl = point.get_y();
+         canvas.set_pixel_at(x_pxl as usize, y_pxl as usize, (10, 156, 210, 255));
+-        let (x_pxl, y_pxl) = transforms::shear_y(x_pxl, y_pxl, 511.0, 511.0, 0.85);
++        let point = transforms::shear_y(&Point::new(x_pxl, y_pxl), &Point::new(511.0, 511.0), 0.85);
++        let x_pxl = point.get_x();
++        let y_pxl = point.get_y();
+         canvas.set_pixel_at(x_pxl as usize, y_pxl as usize, (180, 156, 10, 255));
+         i += 0.1;
+     }
