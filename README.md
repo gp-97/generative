@@ -25,6 +25,8 @@ Currently it is in nascent stage and is somewhat unstable.
 
 #### Perlin Loop
 ![Perlin Loop](examples/outputs/perlin_loop.png)
+#### Watercolored Cirles
+![Watercolored Circles](examples/outputs/watercolor_circles.png)
 #### Mandelbrot
 ![Mandelbrot](examples/outputs/mandelbrot.png)
 #### Generating sinusoidal wave image
