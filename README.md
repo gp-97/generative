@@ -26,7 +26,7 @@ Currently it is in nascent stage and is somewhat unstable.
 #### Perlin Loop
 ![Perlin Loop](examples/outputs/perlin_loop.png)
 #### Perlin Force Field
-![Perlin Force Field](examples/outputs/perlin_force_field.png)
+![Perlin Force Field Lines](examples/outputs/perlin_field_lines.png)
 #### Watercolored Circles
 ![Watercolored Circles](examples/outputs/watercolor_circles.png)
 #### Mandelbrot

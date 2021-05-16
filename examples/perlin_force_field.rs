@@ -18,14 +18,14 @@ fn display(canvas: &mut Canvas) {
             let angle = 2.0 * std::f32::consts::PI * norm(noise, 0.0, amp as f32);
             let x = step as f32 * angle.cos() + row as f32;
             let y = step as f32 * angle.sin() + col as f32;
-            // let points = vec![Point::new(row as f32, col as f32), Point::new(x, y)];
-            // let mut line = Line_aa::new(points, (0, 0, 0, 255), 1, canvas);
-            // line.draw(canvas);
-            for i in 0..5 {
+
+            for i in 1..=5 {
                 let mut circle = Circle::new(Point::new(x, y), i as f32, (0, 0, 0, 255), 1);
                 circle.draw(canvas);
+                canvas.set_pixel_at(x as usize, y as usize, (0, 0, 0, 255));
+                canvas.set_pixel_at(x as usize - i, y as usize, (0, 0, 0, 255));
+                canvas.set_pixel_at(x as usize, y as usize - i, (0, 0, 0, 255));
             }
-            // canvas.set_pixel_at(x as usize, y as usize, (0, 0, 0, 255));
         }
     }
 }

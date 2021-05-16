@@ -70,6 +70,9 @@ impl Point {
     pub fn get_y(&self) -> f32 {
         self.y
     }
+    pub fn euclid_dist_square(&self, other: &Self) -> f32 {
+        (self.x - other.x).powf(2.0) + (self.y - other.y).powf(2.0)
+    }
 }
 
 impl From<(f32, f32)> for Point {
