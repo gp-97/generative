@@ -9,4 +9,5 @@ pub use crate::shape_aa::shape2d::{
 };
 pub use crate::transforms::*;
 pub use crate::{Angle, Pixel, Point, Spline, Transform};
+pub use palette;
 pub use perlin2d::PerlinNoise2D;
