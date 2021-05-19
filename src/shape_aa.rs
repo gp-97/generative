@@ -834,6 +834,207 @@ pub mod shape2d {
             }
         }
     }
+
+    pub struct Ellipse {
+        center: Point,
+        minor_radius: f32,
+        major_radius: f32,
+        color: (u8, u8, u8, u8),
+        thickness: u8,
+        state: Vec<Pixel>,
+    }
+
+    impl Ellipse {
+        pub fn new(
+            center: Point,
+            minor_radius: f32,
+            major_radius: f32,
+            color: (u8, u8, u8, u8),
+            thickness: u8,
+        ) -> Self {
+            let mut ellipse = Self {
+                center,
+                minor_radius,
+                major_radius,
+                color,
+                thickness,
+                state: vec![],
+            };
+            ellipse.calculate();
+            ellipse
+        }
+
+        pub fn set_center(&mut self, center: Point) {
+            self.center = center;
+        }
+
+        pub fn set_major_radius(&mut self, major_radius: f32) {
+            self.major_radius = major_radius;
+        }
+
+        pub fn set_minor_radius(&mut self, minor_radius: f32) {
+            self.minor_radius = minor_radius;
+        }
+
+        pub fn set_color(&mut self, color: (u8, u8, u8, u8)) {
+            self.color = color;
+        }
+
+        pub fn set_thickness(&mut self, thickness: u8) {
+            self.thickness = thickness;
+        }
+
+        pub fn get_center(&self) -> Point {
+            self.center.clone()
+        }
+
+        pub fn get_major_radius(&self) -> f32 {
+            self.major_radius
+        }
+
+        pub fn get_minor_radius(&self) -> f32 {
+            self.minor_radius
+        }
+
+        pub fn get_color(&self) -> (u8, u8, u8, u8) {
+            self.color
+        }
+
+        pub fn get_thickness(&self) -> u8 {
+            self.thickness
+        }
+
+        pub fn get_state(&self) -> Vec<Pixel> {
+            self.state.clone()
+        }
+
+        pub fn draw(&mut self, canvas: &mut canvas::Canvas) {
+            for pixel in self.state.iter_mut() {
+                let point = pixel.get_point();
+                let color = self.color;
+                pixel.set_color(self.color);
+                let x = point.get_x();
+                let y = point.get_y();
+                if x >= 0.0 && y >= 0.0 {
+                    canvas.set_pixel_at(x as usize, y as usize, color);
+                }
+            }
+        }
+
+        fn calculate(&mut self) {
+            let rx = self.minor_radius;
+            let ry = self.major_radius;
+            let xc = self.center.get_x();
+            let yc = self.center.get_y();
+
+            let mut x = 0_f32;
+            let mut y = ry;
+
+            let mut dl = rx * ry - rx * rx * ry + 0.25 * rx * rx;
+            let mut dx = 2.0 * ry * ry * x;
+            let mut dy = 2.0 * rx * rx * y;
+
+            while dx < dy {
+                let point = Point::new(x + xc, y + yc);
+                self.state.push(Pixel::new(point, self.color));
+                let point = Point::new(-x + xc, y + yc);
+                self.state.push(Pixel::new(point, self.color));
+                let point = Point::new(x + xc, -y + yc);
+                self.state.push(Pixel::new(point, self.color));
+                let point = Point::new(-x + xc, -y + yc);
+                self.state.push(Pixel::new(point, self.color));
+
+                if dl < 0.0 {
+                    x += 1.0;
+                    dx += 2.0 * ry * ry;
+                    dl += dx + (ry * ry);
+                } else {
+                    x += 1.0;
+                    y -= 1.0;
+                    dx += 2.0 * ry * ry;
+                    dy -= 2.0 * rx * rx;
+                    dl += dx - dy + ry * ry;
+                }
+            }
+
+            let mut d2 = ry * ry * (x + 0.5) * (x + 0.5) + rx * rx * (y - 1.0) * (y - 1.0) - rx * rx * ry * ry;
+
+            while y >= 0.0 {
+                let point = Point::new(x + xc, y + yc);
+                self.state.push(Pixel::new(point, self.color));
+                let point = Point::new(-x + xc, y + yc);
+                self.state.push(Pixel::new(point, self.color));
+                let point = Point::new(x + xc, -y + yc);
+                self.state.push(Pixel::new(point, self.color));
+                let point = Point::new(-x + xc, -y + yc);
+                self.state.push(Pixel::new(point, self.color));
+
+                if d2 > 0.0 {
+                    y -= 1.0;
+                    dy -= 2.0 * rx * rx;
+                    d2 += rx * rx - dy;
+                } else {
+                    y -= 1.0;
+                    x += 1.0;
+                    dx += 2.0 * ry * ry;
+                    dy -= 2.0 * rx * rx;
+                    d2 += dx - dy + rx * rx;
+                }
+            }
+        }
+
+        pub fn transform(&mut self, operation: Transform) {
+            match operation {
+                Transform::TRANSLATE(tx, ty) => {
+                    self.center = transforms::translate(&self.center, tx, ty);
+                    self.state.clear();
+                    self.calculate();
+                }
+                Transform::ROTATE(point_pivot, angle) => {
+                    self.center = transforms::rotate(&self.center, &point_pivot, angle);
+                    let new_state = self
+                        .state
+                        .iter_mut()
+                        .map(|pixel| {
+                            Pixel::new(
+                                transforms::rotate(&pixel.get_point(), &point_pivot, angle),
+                                pixel.get_color(),
+                            )
+                        })
+                        .collect();
+                    self.state = new_state;
+                }
+                Transform::ShearX(point_ref, shx) => {
+                    self.center = transforms::shear_x(&self.center, &point_ref, shx);
+                    let new_state = self
+                        .state
+                        .iter_mut()
+                        .map(|pixel| {
+                            Pixel::new(
+                                transforms::shear_x(&pixel.get_point(), &point_ref, shx),
+                                pixel.get_color(),
+                            )
+                        })
+                        .collect();
+                    self.state = new_state;
+                }
+                Transform::ShearY(point_ref, shy) => {
+                    self.center = transforms::shear_y(&self.center, &point_ref, shy);
+                    let new_state = self
+                        .state
+                        .iter_mut()
+                        .map(|pixel| {
+                            Pixel::new(
+                                transforms::shear_y(&pixel.get_point(), &point_ref, shy),
+                                pixel.get_color(),
+                            )
+                        })
+                        .collect();
+                    self.state = new_state;
+                }
+            }
+        }
+    }
 }
 
 pub mod curve {
