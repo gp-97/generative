@@ -1,7 +1,7 @@
 use generative::prelude::*;
 
 fn setup() -> Canvas {
-    let mut canvas = Canvas::new(1920*4, 1080*4);
+    let mut canvas = Canvas::new(1920 * 4, 1080 * 4);
     canvas.fill((12, 12, 12, 255));
     canvas
 }
