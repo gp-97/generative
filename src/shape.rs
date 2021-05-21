@@ -173,18 +173,6 @@ pub mod shape2d {
 
     impl Rectangle {
         pub fn new(points: [Point; 2], color: (u8, u8, u8, u8), thickness: u8) -> Self {
-            // let p1 = points[0]; // (x1, y1)
-            // let p2 = points[1]; // (x2, y2)
-            // let p3 = Point::new(p1.get_x(), p2.get_y()); //(x1, y2)
-            // let p4 = Point::new(p2.get_x(), p1.get_y()); //(x2, y1)
-
-            // let mut vertices = vec![];
-
-            // vertices.push(Pixel::new(p1, color));
-            // vertices.push(Pixel::new(p3, color));
-            // vertices.push(Pixel::new(p2, color));
-            // vertices.push(Pixel::new(p4, color));
-
             let mut rect = Self {
                 points,
                 color,
