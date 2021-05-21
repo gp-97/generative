@@ -299,3 +299,65 @@ fn test_circle_aa_shear_y() {
     circle.draw(&mut canvas);
     canvas.save_as_image("tests/outputs/circle_aa_shearY.png");
 }
+
+#[test]
+fn test_ellipse_init() {
+    let mut canvas = Canvas::new(512, 512);
+    canvas.fill((0, 0, 0, 255));
+    let color = (242, 45, 210, 255);
+    let mut ellipse = shape2d::Ellipse::new(Point::new(256.0, 256.0), 64.0, 128.0, color, 1);
+    ellipse.draw(&mut canvas);
+    canvas.save_as_image("tests/outputs/ellipse_init_aa.png");
+}
+
+#[test]
+fn test_ellipse_translate() {
+    let mut canvas = Canvas::new(512, 512);
+    canvas.fill((0, 0, 0, 255));
+    let color = (242, 45, 210, 255);
+    let mut ellipse = shape2d::Ellipse::new(Point::new(256.0, 256.0), 64.0, 128.0, color, 1);
+    ellipse.draw(&mut canvas);
+    ellipse.transform(Transform::TRANSLATE(10.0, 10.0));
+    ellipse.set_color((10, 180, 200, 255));
+    ellipse.draw(&mut canvas);
+    canvas.save_as_image("tests/outputs/ellipse_translate_aa.png");
+}
+
+#[test]
+fn test_ellipse_rotate() {
+    let mut canvas = Canvas::new(512, 512);
+    canvas.fill((0, 0, 0, 255));
+    let color = (242, 45, 210, 255);
+    let mut ellipse = shape2d::Ellipse::new(Point::new(256.0, 256.0), 64.0, 128.0, color, 1);
+    ellipse.draw(&mut canvas);
+    ellipse.transform(Transform::ROTATE(Point::new(256.0, 256.0), Angle::DEGREE(90.0)));
+    ellipse.set_color((10, 180, 200, 255));
+    ellipse.draw(&mut canvas);
+    canvas.save_as_image("tests/outputs/ellipse_rotate_aa.png");
+}
+
+#[test]
+fn test_ellipse_shearx() {
+    let mut canvas = Canvas::new(512, 512);
+    canvas.fill((0, 0, 0, 255));
+    let color = (242, 45, 210, 255);
+    let mut ellipse = shape2d::Ellipse::new(Point::new(256.0, 256.0), 64.0, 128.0, color, 1);
+    ellipse.draw(&mut canvas);
+    ellipse.transform(Transform::ShearX(Point::new(256.0, 256.0), 0.25));
+    ellipse.set_color((10, 180, 200, 255));
+    ellipse.draw(&mut canvas);
+    canvas.save_as_image("tests/outputs/ellipse_shearx_aa.png");
+}
+
+#[test]
+fn test_ellipse_sheary() {
+    let mut canvas = Canvas::new(512, 512);
+    canvas.fill((0, 0, 0, 255));
+    let color = (242, 45, 210, 255);
+    let mut ellipse = shape2d::Ellipse::new(Point::new(256.0, 256.0), 64.0, 128.0, color, 1);
+    ellipse.draw(&mut canvas);
+    ellipse.transform(Transform::ShearY(Point::new(256.0, 256.0), 1.0));
+    ellipse.set_color((10, 180, 200, 255));
+    ellipse.draw(&mut canvas);
+    canvas.save_as_image("tests/outputs/ellipse_sheary_aa.png");
+}

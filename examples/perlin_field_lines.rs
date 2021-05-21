@@ -1,7 +1,7 @@
 use generative::prelude::*;
 
 fn setup() -> Canvas {
-    let mut canvas = Canvas::new(1920, 1080);
+    let mut canvas = Canvas::new(1920 * 4, 1080 * 4);
     canvas.fill((12, 12, 12, 255));
     canvas
 }
@@ -12,7 +12,7 @@ fn field_point_generator(
     canvas: &mut Canvas,
 ) {
     let amp = 15.0;
-    let perlin = PerlinNoise2D::new(1, amp, 0.2, 1.75, 10.0, (100.0, 100.0), 0.5, 101);
+    let perlin = PerlinNoise2D::new(1, amp, 0.2, 0.25, 10.0, (100.0, 100.0), 0.5, 101);
     let width = canvas.get_width() as usize;
     let height = canvas.get_height() as usize;
     let step = 12;
